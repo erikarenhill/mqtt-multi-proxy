@@ -199,12 +199,6 @@ impl MainBrokerClient {
         let mut all_topics = HashSet::new();
 
         for broker in brokers {
-            // Skip bidirectional brokers - they publish back to main broker themselves
-            // to avoid loops (we don't want to forward their own messages back to them)
-            if broker.bidirectional {
-                continue;
-            }
-
             if broker.topics.is_empty() {
                 // If no topics specified, subscribe to all (#)
                 all_topics.insert("#".to_string());
