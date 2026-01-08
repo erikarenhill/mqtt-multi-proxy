@@ -69,6 +69,9 @@ COPY --from=builder /app/target/release/mqtt-proxy .
 # Copy web UI static files from web-builder
 COPY --from=web-builder /app/web-ui/dist ./web-ui/dist
 
+# Copy default config
+COPY --chown=appuser:appuser config/config.toml ./config/
+
 # Create data directory
 RUN mkdir -p data
 

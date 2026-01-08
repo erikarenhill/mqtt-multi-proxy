@@ -62,10 +62,21 @@ fn default_true() -> bool {
 
 impl Config {
     pub fn from_env() -> Result<Self> {
-        let config_path = std::env::var("MQTT_PROXY_CONFIG")
-            .unwrap_or_else(|_| "./config/proxy.toml".to_string());
+        // Check if config file path is explicitly set
+        if let Ok(config_path) = std::env::var("MQTT_PROXY_CONFIG") {
+            if std::path::Path::new(&config_path).exists() {
+                return Self::from_file(&config_path);
+            }
+        }
 
-        Self::from_file(&config_path)
+        // Fall back to default path if it exists
+        let default_path = "./config/config.toml";
+        if std::path::Path::new(default_path).exists() {
+            return Self::from_file(default_path);
+        }
+
+        // Use defaults from environment variables
+        Ok(Self::default())
     }
 
     pub fn from_file(path: &str) -> Result<Self> {

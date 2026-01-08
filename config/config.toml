@@ -1,0 +1,17 @@
+# MQTT Proxy Configuration
+# This file is optional - settings can also come from environment variables
+
+[main_broker]
+# Address of the main MQTT broker (use "mosquitto" for Docker, "localhost" for local dev)
+address = "mosquitto"
+port = 1883
+client_id = "mqtt-proxy"
+# username = "user"
+# password = "pass"
+
+[web_ui]
+port = 3000
+enabled = true
+
+[storage]
+broker_store_path = "./data/brokers.json"

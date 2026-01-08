@@ -10,10 +10,8 @@ services:
     ports:
       - "3999:3000"  # Web API port (MQTT now handled by mosquitto)
     volumes:
-      - ./config/proxy.toml:/app/config/proxy.toml:ro
       - mqtt-proxy-data:/app/data  # Persistent storage for broker configs
     environment:
-      - MQTT_PROXY_CONFIG=/app/config/proxy.toml
       - LOG_LEVEL=info
       - RUST_LOG=mqtt_proxy=info,rumqttc=warn
       - MAIN_BROKER_ADDRESS=mosquitto:1883
@@ -54,13 +52,13 @@ services:
   # Main MQTT broker (Eclipse Mosquitto)
   # Clients and MQTT Explorer connect here
   mosquitto:
-    image: eclipse-mosquitto:2
+    build:
+      context: .
+      dockerfile: Dockerfile.mosquitto
     container_name: mqtt-main-broker
     restart: unless-stopped
     ports:
       - "1883:1883"  # Main MQTT port - clients connect here
-    volumes:
-      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     networks:
       - mqtt-network
 
