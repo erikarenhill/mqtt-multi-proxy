@@ -98,6 +98,7 @@ Broker configurations are stored persistently in `./data/brokers.json` (Docker v
 
 - `LOG_LEVEL` - Logging verbosity: `error`, `warn`, `info`, `debug`, `trace`
 - `RUST_LOG` - Fine-grained logging: `mqtt_proxy=debug,rumqttc=warn`
+- `MQTT_PROXY_SECRET` - Secret key for encrypting broker passwords in config storage. **Change this in production!**
 
 ## Web UI
 

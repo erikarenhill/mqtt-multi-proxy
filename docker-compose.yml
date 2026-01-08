@@ -15,6 +15,7 @@ services:
       - LOG_LEVEL=info
       - RUST_LOG=mqtt_proxy=info,rumqttc=warn
       - MAIN_BROKER_ADDRESS=mosquitto:1883
+      - MQTT_PROXY_SECRET=CHANGE-ME-DEV  # Change this in production!
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
