@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 /// Create a hash from topic and payload for deduplication
 fn message_hash(topic: &str, payload: &[u8]) -> u64 {
@@ -193,37 +193,14 @@ impl MainBrokerClient {
     }
 
     async fn subscribe_to_all_topics(&self, client: &AsyncClient) -> HashSet<String> {
-        let manager = self.connection_manager.read().await;
-        let brokers = manager.get_all_brokers();
-
+        // Always subscribe to all topics (#) so the WebUI can monitor everything
+        // Message filtering for downstream brokers happens in forward_message()
         let mut all_topics = HashSet::new();
+        all_topics.insert("#".to_string());
 
-        for broker in brokers {
-            if broker.topics.is_empty() {
-                // If no topics specified, subscribe to all (#)
-                all_topics.insert("#".to_string());
-            } else {
-                for topic in &broker.topics {
-                    all_topics.insert(topic.clone());
-                }
-            }
-        }
-
-        // If we have # (all topics), no need to subscribe to anything else
-        if all_topics.contains("#") {
-            match client.subscribe("#", QoS::AtMostOnce).await {
-                Ok(_) => info!("Subscribed to all topics (#)"),
-                Err(e) => error!("Failed to subscribe to #: {}", e),
-            }
-            return all_topics;
-        }
-
-        // Subscribe to each unique topic
-        for topic in &all_topics {
-            match client.subscribe(topic, QoS::AtMostOnce).await {
-                Ok(_) => debug!("Subscribed to topic: {}", topic),
-                Err(e) => warn!("Failed to subscribe to '{}': {}", topic, e),
-            }
+        match client.subscribe("#", QoS::AtMostOnce).await {
+            Ok(_) => info!("Subscribed to all topics (#) for monitoring"),
+            Err(e) => error!("Failed to subscribe to #: {}", e),
         }
 
         all_topics
