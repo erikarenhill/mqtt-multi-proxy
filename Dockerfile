@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.4
 # Multi-stage Dockerfile for MQTT Proxy
 # Optimized for minimal image size and fast builds
 
@@ -10,9 +9,8 @@ WORKDIR /app/web-ui
 # Copy package files first for dependency caching
 COPY web-ui/package*.json ./
 
-# Install dependencies with npm cache mount
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+# Install dependencies
+RUN npm ci
 
 # Copy source files
 COPY web-ui/ ./
@@ -38,24 +36,18 @@ RUN mkdir -p src benches && \
     echo "fn main() {}" > benches/latency.rs && \
     echo "fn main() {}" > benches/throughput.rs
 
-# Build dependencies with cargo registry cache (cached layer)
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    cargo build --release && \
+# Build dependencies (cached layer)
+RUN cargo build --release && \
     rm -rf src benches target/release/mqtt-proxy* target/release/deps/mqtt_proxy*
 
 # Copy real source code
 COPY src ./src
 COPY benches ./benches
 
-# Build the actual application with cache mounts
-# Copy binary out of target dir since cache mounts don't persist
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    touch src/main.rs src/lib.rs && \
+# Build the actual application
+RUN touch src/main.rs src/lib.rs && \
     cargo build --release && \
-    strip target/release/mqtt-proxy && \
-    cp target/release/mqtt-proxy /mqtt-proxy
+    strip target/release/mqtt-proxy
 
 # Runtime stage
 FROM alpine:3.19
@@ -69,14 +61,14 @@ RUN apk add --no-cache ca-certificates tzdata && \
 WORKDIR /app
 USER appuser
 
-# Copy binary from builder (use --link for layer independence)
-COPY --link --from=builder /mqtt-proxy ./mqtt-proxy
+# Copy binary from builder
+COPY --from=builder /app/target/release/mqtt-proxy ./mqtt-proxy
 
 # Copy web UI static files from web-builder
-COPY --link --from=web-builder /app/web-ui/dist ./web-ui/dist
+COPY --from=web-builder /app/web-ui/dist ./web-ui/dist
 
-# Copy default config (changes more frequently, so copy last)
-COPY --link --chown=appuser:appuser config/config.toml ./config/
+# Copy default config
+COPY --chown=appuser:appuser config/config.toml ./config/
 
 # Expose ports
 EXPOSE 1883 3000
