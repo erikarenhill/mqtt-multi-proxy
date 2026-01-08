@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.1.0...v1.1.1) (2026-01-08)
+
+
+### Bug Fixes
+
+* allow config.toml in docker ([b133ad5](https://github.com/erikarenhill/mqtt-multi-proxy/commit/b133ad5471851b68fbdb7941b1739da2086bb727))
+
 ## [1.1.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.0.2...v1.1.0) (2026-01-08)
 
 
