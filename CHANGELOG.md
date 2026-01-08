@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.0.0...v1.0.1) (2026-01-08)
+
+
+### Bug Fixes
+
+* pass clippy ([3f6e41b](https://github.com/erikarenhill/mqtt-multi-proxy/commit/3f6e41b06187f45212e70ad0ba674a92078d7d26))
+
 ## 1.0.0 (2026-01-08)
 
 
