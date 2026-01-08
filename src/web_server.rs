@@ -178,12 +178,13 @@ async fn add_broker(
 
     state.broker_storage.add(broker.clone()).await?;
 
-    // Notify connection manager to establish connection
+    // Notify connection manager to establish connection (uses plaintext password)
     let mut manager = state.connection_manager.write().await;
     manager.add_broker(broker.clone()).await?;
 
     info!("Broker '{}' added via API", broker.name);
-    Ok(Json(broker))
+    // Return config with hidden password
+    Ok(Json(broker.with_hidden_password()))
 }
 
 // Update existing broker
@@ -227,12 +228,18 @@ async fn update_broker(
 
     state.broker_storage.update(&id, updated.clone()).await?;
 
-    // Update connection manager
+    // Update connection manager (need decrypted password for connections)
+    let broker_with_password = state
+        .broker_storage
+        .get_with_password(&id)
+        .await
+        .ok_or(AppError::NotFound)?;
     let mut manager = state.connection_manager.write().await;
-    manager.update_broker(updated.clone()).await?;
+    manager.update_broker(broker_with_password).await?;
 
     info!("Broker '{}' updated via API", updated.name);
-    Ok(Json(updated))
+    // Return config with hidden password
+    Ok(Json(updated.with_hidden_password()))
 }
 
 // Delete broker
@@ -261,12 +268,12 @@ async fn toggle_broker(
         .toggle_enabled(&id, payload.enabled)
         .await?;
 
-    // Update connection manager
+    // Update connection manager (need decrypted password for connections)
     let mut manager = state.connection_manager.write().await;
     if payload.enabled {
         let broker = state
             .broker_storage
-            .get(&id)
+            .get_with_password(&id)
             .await
             .ok_or(AppError::NotFound)?;
         manager.enable_broker(broker).await?;

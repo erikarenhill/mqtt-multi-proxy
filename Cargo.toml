@@ -50,6 +50,12 @@ prometheus = "0.13"
 uuid = { version = "1.6", features = ["v4", "serde"] }
 parking_lot = "0.12"
 
+# Encryption
+aes-gcm = "0.10"
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
 tokio-test = "0.4"

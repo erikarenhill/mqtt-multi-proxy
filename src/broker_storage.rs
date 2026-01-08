@@ -1,9 +1,10 @@
+use crate::crypto::{decrypt_password, encrypt_password, warn_if_encryption_not_configured};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +36,40 @@ fn default_true() -> bool {
     true
 }
 
+impl BrokerConfig {
+    /// Returns a copy with the password encrypted (for storage)
+    fn with_encrypted_password(&self) -> Self {
+        let mut config = self.clone();
+        if let Some(ref password) = config.password {
+            config.password = Some(encrypt_password(password));
+        }
+        config
+    }
+
+    /// Returns a copy with the password decrypted (for internal use)
+    fn with_decrypted_password(&self) -> Self {
+        let mut config = self.clone();
+        if let Some(ref password) = config.password {
+            match decrypt_password(password) {
+                Some(decrypted) => config.password = Some(decrypted),
+                None => {
+                    warn!("Failed to decrypt password for broker '{}', using as-is", self.name);
+                }
+            }
+        }
+        config
+    }
+
+    /// Returns a copy with password hidden (for API responses)
+    pub fn with_hidden_password(&self) -> Self {
+        let mut config = self.clone();
+        if config.password.is_some() {
+            config.password = Some("********".to_string());
+        }
+        config
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct BrokerStore {
     brokers: Vec<BrokerConfig>,
@@ -48,6 +83,9 @@ pub struct BrokerStorage {
 impl BrokerStorage {
     pub fn new<P: AsRef<Path>>(store_path: P) -> Result<Self> {
         let store_path = store_path.as_ref().to_path_buf();
+
+        // Check if encryption is configured
+        warn_if_encryption_not_configured();
 
         // Create directory if it doesn't exist
         if let Some(parent) = store_path.parent() {
@@ -75,14 +113,44 @@ impl BrokerStorage {
         })
     }
 
+    /// Returns all brokers with passwords hidden (for API responses)
     pub async fn list(&self) -> Vec<BrokerConfig> {
         let store = self.store.read().await;
-        store.brokers.clone()
+        store
+            .brokers
+            .iter()
+            .map(|b| b.with_hidden_password())
+            .collect()
     }
 
+    /// Returns all brokers with decrypted passwords (for internal use)
+    pub async fn list_with_passwords(&self) -> Vec<BrokerConfig> {
+        let store = self.store.read().await;
+        store
+            .brokers
+            .iter()
+            .map(|b| b.with_decrypted_password())
+            .collect()
+    }
+
+    /// Returns a broker with password hidden (for API responses)
     pub async fn get(&self, id: &str) -> Option<BrokerConfig> {
         let store = self.store.read().await;
-        store.brokers.iter().find(|b| b.id == id).cloned()
+        store
+            .brokers
+            .iter()
+            .find(|b| b.id == id)
+            .map(|b| b.with_hidden_password())
+    }
+
+    /// Returns a broker with decrypted password (for internal use)
+    pub async fn get_with_password(&self, id: &str) -> Option<BrokerConfig> {
+        let store = self.store.read().await;
+        store
+            .brokers
+            .iter()
+            .find(|b| b.id == id)
+            .map(|b| b.with_decrypted_password())
     }
 
     pub async fn add(&self, broker: BrokerConfig) -> Result<()> {
@@ -96,7 +164,8 @@ impl BrokerStorage {
             anyhow::bail!("Broker with name '{}' already exists", broker.name);
         }
 
-        store.brokers.push(broker);
+        // Encrypt password before storing
+        store.brokers.push(broker.with_encrypted_password());
         drop(store); // Release lock before saving
 
         self.save().await?;
@@ -123,7 +192,24 @@ impl BrokerStorage {
             anyhow::bail!("Broker with name '{}' already exists", updated.name);
         }
 
-        store.brokers[index] = updated;
+        // Handle password: if not provided or is the hidden placeholder, keep existing
+        let mut config_to_store = updated.clone();
+        match &updated.password {
+            None => {
+                // Keep existing password
+                config_to_store.password = store.brokers[index].password.clone();
+            }
+            Some(p) if p == "********" => {
+                // Hidden placeholder, keep existing password
+                config_to_store.password = store.brokers[index].password.clone();
+            }
+            Some(_) => {
+                // New password provided, encrypt it
+                config_to_store = config_to_store.with_encrypted_password();
+            }
+        }
+
+        store.brokers[index] = config_to_store;
         drop(store);
 
         self.save().await?;

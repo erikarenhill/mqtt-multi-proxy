@@ -2,6 +2,7 @@ pub mod broker_storage;
 pub mod client_registry;
 pub mod config;
 pub mod connection_manager;
+pub mod crypto;
 pub mod main_broker_client;
 pub mod metrics;
 pub mod mqtt_listener;

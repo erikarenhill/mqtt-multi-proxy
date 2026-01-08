@@ -31,8 +31,8 @@ impl MqttProxy {
         // Initialize with default test brokers if empty
         broker_storage.init_defaults().await?;
 
-        // Load broker configurations
-        let broker_configs = broker_storage.list().await;
+        // Load broker configurations (with decrypted passwords for connections)
+        let broker_configs = broker_storage.list_with_passwords().await;
         info!(
             "Loaded {} downstream broker configurations",
             broker_configs.len()
