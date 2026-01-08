@@ -34,10 +34,17 @@ export default function AddBrokerForm({ onAdd, onCancel, initialBroker, isEditin
     topics: [],
   })
   const [topicInput, setTopicInput] = useState('')
+  const [keepPassword, setKeepPassword] = useState(isEditing) // Default to true when editing
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onAdd(formData)
+    // If keeping password, don't send password field
+    if (isEditing && keepPassword) {
+      const { password: _, ...dataWithoutPassword } = formData
+      onAdd(dataWithoutPassword as BrokerFormData)
+    } else {
+      onAdd(formData)
+    }
   }
 
   const handleChange = (field: keyof BrokerFormData, value: string | number | boolean) => {
@@ -136,13 +143,25 @@ export default function AddBrokerForm({ onAdd, onCancel, initialBroker, isEditin
 
         <div className="form-group">
           <label htmlFor="password">Password (optional)</label>
-          <input
-            id="password"
-            type="password"
-            value={formData.password || ''}
-            onChange={(e) => handleChange('password', e.target.value)}
-            placeholder="Leave empty if no auth"
-          />
+          {isEditing && (
+            <label className="checkbox-label" style={{ marginBottom: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={keepPassword}
+                onChange={(e) => setKeepPassword(e.target.checked)}
+              />
+              <span>Keep current password</span>
+            </label>
+          )}
+          {(!isEditing || !keepPassword) && (
+            <input
+              id="password"
+              type="password"
+              value={formData.password || ''}
+              onChange={(e) => handleChange('password', e.target.value)}
+              placeholder={isEditing ? "Enter new password" : "Leave empty if no auth"}
+            />
+          )}
         </div>
       </div>
 
