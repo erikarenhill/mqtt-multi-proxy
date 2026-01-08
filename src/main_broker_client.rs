@@ -4,8 +4,8 @@ use anyhow::Result;
 use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
@@ -43,11 +43,7 @@ impl MainBrokerClient {
         messages_forwarded: Option<Arc<AtomicU64>>,
         total_latency_ns: Option<Arc<AtomicU64>>,
     ) -> Result<Self> {
-        let mut mqtt_options = MqttOptions::new(
-            &config.client_id,
-            &config.address,
-            config.port,
-        );
+        let mut mqtt_options = MqttOptions::new(&config.client_id, &config.address, config.port);
         mqtt_options.set_keep_alive(std::time::Duration::from_secs(60));
 
         if let (Some(username), Some(password)) = (&config.username, &config.password) {
@@ -68,8 +64,10 @@ impl MainBrokerClient {
     }
 
     pub async fn run(self) -> Result<()> {
-        info!("Starting main broker client, connecting to {}:{}",
-            self.config.address, self.config.port);
+        info!(
+            "Starting main broker client, connecting to {}:{}",
+            self.config.address, self.config.port
+        );
 
         let mut mqtt_options = MqttOptions::new(
             &self.config.client_id,
@@ -97,12 +95,17 @@ impl MainBrokerClient {
         loop {
             match eventloop.poll().await {
                 Ok(Event::Incoming(Incoming::ConnAck(_))) => {
-                    info!("Connected to main broker at {}:{}",
-                        self.config.address, self.config.port);
+                    info!(
+                        "Connected to main broker at {}:{}",
+                        self.config.address, self.config.port
+                    );
 
                     // Re-subscribe after reconnection
                     let subscribed = self.subscribe_to_all_topics(&client).await;
-                    info!("Re-subscribed to {} topics after reconnection", subscribed.len());
+                    info!(
+                        "Re-subscribed to {} topics after reconnection",
+                        subscribed.len()
+                    );
                 }
                 Ok(Event::Incoming(Incoming::Publish(publish))) => {
                     let start = Instant::now();
@@ -117,7 +120,9 @@ impl MainBrokerClient {
 
                     // Clean old entries from cache
                     let now = Instant::now();
-                    message_cache.retain(|e| now.duration_since(e.timestamp) < Duration::from_millis(DEDUP_WINDOW_MS));
+                    message_cache.retain(|e| {
+                        now.duration_since(e.timestamp) < Duration::from_millis(DEDUP_WINDOW_MS)
+                    });
 
                     // Check if this is a duplicate (echoed message)
                     let is_duplicate = message_cache.iter().any(|e| e.hash == hash);
@@ -132,7 +137,11 @@ impl MainBrokerClient {
                         timestamp: now,
                     });
 
-                    debug!("📥 Received from main broker: topic='{}', {} bytes", topic, payload.len());
+                    debug!(
+                        "📥 Received from main broker: topic='{}', {} bytes",
+                        topic,
+                        payload.len()
+                    );
 
                     // Increment received counter
                     if let Some(counter) = &self.messages_received {
@@ -158,13 +167,10 @@ impl MainBrokerClient {
 
                     // Forward to matching downstream brokers
                     let manager = self.connection_manager.read().await;
-                    if let Err(e) = manager.forward_message(
-                        &topic,
-                        payload,
-                        qos,
-                        retain,
-                        &self.messages_forwarded,
-                    ).await {
+                    if let Err(e) = manager
+                        .forward_message(&topic, payload, qos, retain, &self.messages_forwarded)
+                        .await
+                    {
                         error!("Failed to forward message: {}", e);
                     }
 

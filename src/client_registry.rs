@@ -35,11 +35,7 @@ impl ClientRegistry {
     }
 
     /// Register a new client connection
-    pub async fn register_client(
-        &self,
-        client_id: String,
-        tx: mpsc::Sender<ClientMessage>,
-    ) {
+    pub async fn register_client(&self, client_id: String, tx: mpsc::Sender<ClientMessage>) {
         let mut clients = self.clients.write().await;
         clients.insert(
             client_id.clone(),
@@ -70,7 +66,10 @@ impl ClientRegistry {
             }
             topics
         } else {
-            warn!("Attempted to add subscriptions for unknown client '{}'", client_id);
+            warn!(
+                "Attempted to add subscriptions for unknown client '{}'",
+                client_id
+            );
             Vec::new()
         }
     }
@@ -110,18 +109,27 @@ impl ClientRegistry {
             if client.subscriptions.contains(topic) {
                 match client.tx.send(message.clone()).await {
                     Ok(_) => {
-                        debug!("Forwarded message on '{}' to client '{}'", topic, client.client_id);
+                        debug!(
+                            "Forwarded message on '{}' to client '{}'",
+                            topic, client.client_id
+                        );
                         sent_count += 1;
                     }
                     Err(e) => {
-                        warn!("Failed to send message to client '{}': {}", client.client_id, e);
+                        warn!(
+                            "Failed to send message to client '{}': {}",
+                            client.client_id, e
+                        );
                     }
                 }
             }
         }
 
         if sent_count > 0 {
-            info!("📤 Message on '{}' forwarded to {} subscribed client(s)", topic, sent_count);
+            info!(
+                "📤 Message on '{}' forwarded to {} subscribed client(s)",
+                topic, sent_count
+            );
         }
     }
 
@@ -188,11 +196,20 @@ mod tests {
         // Multi-level wildcard (#)
         assert!(ClientRegistry::topic_matches("home/#", "home/temp"));
         assert!(ClientRegistry::topic_matches("home/#", "home/living/temp"));
-        assert!(ClientRegistry::topic_matches("home/#", "home/living/room/temp"));
+        assert!(ClientRegistry::topic_matches(
+            "home/#",
+            "home/living/room/temp"
+        ));
         assert!(!ClientRegistry::topic_matches("home/#", "office/temp"));
 
         // Combined wildcards
-        assert!(ClientRegistry::topic_matches("home/+/temp", "home/living/temp"));
-        assert!(!ClientRegistry::topic_matches("home/+/temp", "home/living/room/temp"));
+        assert!(ClientRegistry::topic_matches(
+            "home/+/temp",
+            "home/living/temp"
+        ));
+        assert!(!ClientRegistry::topic_matches(
+            "home/+/temp",
+            "home/living/room/temp"
+        ));
     }
 }

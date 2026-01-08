@@ -21,6 +21,25 @@ interface Broker {
   topics: string[]
 }
 
+interface BrokerStatus {
+  id: string
+  connected: boolean
+}
+
+interface BrokerFormData {
+  name: string
+  address: string
+  port: number
+  clientIdPrefix: string
+  enabled?: boolean
+  username?: string
+  password?: string
+  useTls?: boolean
+  insecureSkipVerify?: boolean
+  bidirectional?: boolean
+  topics?: string[]
+}
+
 function App() {
   const [brokers, setBrokers] = useState<Broker[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,8 +63,8 @@ function App() {
       const statusData = await statusResponse.json()
 
       // Merge the data - add connected state from status to broker configs
-      const brokersWithStatus = brokersData.brokers.map((broker: any) => {
-        const status = statusData.brokers.find((s: any) => s.id === broker.id)
+      const brokersWithStatus = brokersData.brokers.map((broker: Broker) => {
+        const status = statusData.brokers.find((s: BrokerStatus) => s.id === broker.id)
         return {
           ...broker,
           connected: status?.connected || false,
@@ -60,7 +79,7 @@ function App() {
     }
   }
 
-  const handleAddBroker = async (brokerData: any) => {
+  const handleAddBroker = async (brokerData: BrokerFormData) => {
     try {
       const response = await fetch('/api/brokers', {
         method: 'POST',
@@ -138,12 +157,12 @@ function App() {
     })
   }
 
-  const handleUpdateBroker = async (brokerData: any) => {
+  const handleUpdateBroker = async (brokerData: BrokerFormData) => {
     if (!editingBroker) return
 
     try {
       // Ensure all required fields are present
-      const updateData: any = {
+      const updateData: BrokerFormData & { username?: string; password?: string } = {
         name: brokerData.name,
         address: brokerData.address,
         port: brokerData.port,

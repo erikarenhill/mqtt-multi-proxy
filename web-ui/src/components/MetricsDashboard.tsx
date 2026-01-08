@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 
+interface BrokerStatus {
+  connected: boolean
+  enabled: boolean
+}
+
 interface Metrics {
   messagesReceived: number
   messagesForwarded: number
@@ -30,7 +35,7 @@ export default function MetricsDashboard() {
         messagesReceived: data.total_messages_received || 0,
         messagesForwarded: data.total_messages_forwarded || 0,
         avgLatencyMs: data.avg_latency_ms || 0,
-        activeConnections: data.brokers?.filter((b: any) => b.connected && b.enabled).length || 0,
+        activeConnections: data.brokers?.filter((b: BrokerStatus) => b.connected && b.enabled).length || 0,
       })
     } catch (error) {
       console.error('Failed to fetch metrics:', error)

@@ -1,15 +1,15 @@
 use anyhow::{Context, Result};
 use bytes::{Buf, Bytes, BytesMut};
 use mqttrs::*;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
-use crate::client_registry::{ClientRegistry, ClientMessage};
+use crate::client_registry::{ClientMessage, ClientRegistry};
 use crate::connection_manager::ConnectionManager;
 
 /// Messages that can be sent to a client
@@ -104,7 +104,17 @@ impl MqttListenerServer {
                     let total_latency_ns = self.total_latency_ns.clone();
 
                     tokio::spawn(async move {
-                        if let Err(e) = handle_client(stream, connection_manager, client_registry, message_tx, messages_received, messages_forwarded, total_latency_ns).await {
+                        if let Err(e) = handle_client(
+                            stream,
+                            connection_manager,
+                            client_registry,
+                            message_tx,
+                            messages_received,
+                            messages_forwarded,
+                            total_latency_ns,
+                        )
+                        .await
+                        {
                             error!("Client connection error from {}: {}", addr, e);
                         }
                     });
@@ -238,8 +248,10 @@ async fn handle_client(
                         &message_tx,
                         &messages_received,
                         &messages_forwarded,
-                        &total_latency_ns
-                    ).await {
+                        &total_latency_ns,
+                    )
+                    .await
+                    {
                         Ok(should_continue) => {
                             if !should_continue {
                                 info!("Client {} requested disconnect", client_id);
@@ -294,18 +306,27 @@ async fn handle_packet<'a>(
     match packet {
         Packet::Connect(connect) => {
             *client_id = connect.client_id.to_string();
-            info!("CONNECT from client '{}' (protocol: {:?}, clean_session: {})",
-                client_id, connect.protocol, connect.clean_session);
+            info!(
+                "CONNECT from client '{}' (protocol: {:?}, clean_session: {})",
+                client_id, connect.protocol, connect.clean_session
+            );
 
             // Register client with registry (use mqtt_msg_tx for bidirectional messages)
-            client_registry.register_client(client_id.clone(), mqtt_msg_tx.clone()).await;
+            client_registry
+                .register_client(client_id.clone(), mqtt_msg_tx.clone())
+                .await;
             *client_registered = true;
-            info!("✅ Client '{}' registered for bidirectional message forwarding", client_id);
+            info!(
+                "✅ Client '{}' registered for bidirectional message forwarding",
+                client_id
+            );
 
             // Send CONNACK - manually constructed for reliability
             // CONNACK: Fixed header (0x20) + Remaining length (0x02) + Session present (0x00) + Return code (0x00 = accepted)
             let connack_bytes = vec![0x20u8, 0x02, 0x00, 0x00];
-            to_client_tx.send(ClientWrite::RawPacket(connack_bytes)).await
+            to_client_tx
+                .send(ClientWrite::RawPacket(connack_bytes))
+                .await
                 .context("Failed to send CONNACK")?;
             debug!("Sent CONNACK to client '{}'", client_id);
             Ok(true)
@@ -344,7 +365,10 @@ async fn handle_packet<'a>(
                 let preview = if payload.len() <= 100 {
                     String::from_utf8_lossy(&payload).to_string()
                 } else {
-                    format!("{}... (truncated)", String::from_utf8_lossy(&payload[..100]))
+                    format!(
+                        "{}... (truncated)",
+                        String::from_utf8_lossy(&payload[..100])
+                    )
                 };
                 debug!("📄 Payload preview: {}", preview);
             }
@@ -372,7 +396,10 @@ async fn handle_packet<'a>(
 
             // Forward to all downstream brokers
             let manager = connection_manager.read().await;
-            match manager.forward_message(topic, payload, qos, publish.retain, messages_forwarded).await {
+            match manager
+                .forward_message(topic, payload, qos, publish.retain, messages_forwarded)
+                .await
+            {
                 Ok(_) => {
                     info!("✅ Message forwarded to all brokers: topic='{}'", topic);
                 }
@@ -392,12 +419,23 @@ async fn handle_packet<'a>(
                 if matches!(qos, rumqttc::QoS::AtLeastOnce) {
                     // Get the packet ID as u16
                     let pid_bytes = format!("{:?}", pid); // Format: "Pid(123)"
-                    if let Some(num_str) = pid_bytes.strip_prefix("Pid(").and_then(|s| s.strip_suffix(")")) {
+                    if let Some(num_str) = pid_bytes
+                        .strip_prefix("Pid(")
+                        .and_then(|s| s.strip_suffix(")"))
+                    {
                         if let Ok(pid_u16) = num_str.parse::<u16>() {
                             // PUBACK: Fixed header (0x40) + Remaining length (0x02) + Packet ID (2 bytes, big-endian)
-                            let puback_bytes = vec![0x40u8, 0x02, (pid_u16 >> 8) as u8, (pid_u16 & 0xFF) as u8];
-                            if to_client_tx.send(ClientWrite::RawPacket(puback_bytes)).await.is_ok() {
-                                debug!("Sent PUBACK to client '{}' for packet {}", client_id, pid_u16);
+                            let puback_bytes =
+                                vec![0x40u8, 0x02, (pid_u16 >> 8) as u8, (pid_u16 & 0xFF) as u8];
+                            if to_client_tx
+                                .send(ClientWrite::RawPacket(puback_bytes))
+                                .await
+                                .is_ok()
+                            {
+                                debug!(
+                                    "Sent PUBACK to client '{}' for packet {}",
+                                    client_id, pid_u16
+                                );
                             }
                         }
                     }
@@ -411,18 +449,26 @@ async fn handle_packet<'a>(
             debug!("PINGREQ from client '{}'", client_id);
             // PINGRESP: Fixed header (0xD0) + Remaining length (0x00)
             let pingresp_bytes = vec![0xD0u8, 0x00];
-            to_client_tx.send(ClientWrite::RawPacket(pingresp_bytes)).await
+            to_client_tx
+                .send(ClientWrite::RawPacket(pingresp_bytes))
+                .await
                 .context("Failed to send PINGRESP")?;
             debug!("Sent PINGRESP to client '{}'", client_id);
             Ok(true)
         }
 
         Packet::Subscribe(subscribe) => {
-            let topics: Vec<String> = subscribe.topics.iter().map(|t| t.topic_path.to_string()).collect();
+            let topics: Vec<String> = subscribe
+                .topics
+                .iter()
+                .map(|t| t.topic_path.to_string())
+                .collect();
             info!("SUBSCRIBE from client '{}': topics={:?}", client_id, topics);
 
             // Add subscriptions to client registry
-            let subscribed_topics = client_registry.add_subscriptions(client_id, topics.clone()).await;
+            let subscribed_topics = client_registry
+                .add_subscriptions(client_id, topics.clone())
+                .await;
 
             // Subscribe to these topics on all bidirectional brokers
             if !subscribed_topics.is_empty() {
@@ -433,7 +479,11 @@ async fn handle_packet<'a>(
             // Send SUBACK
             let suback = Packet::Suback(Suback {
                 pid: subscribe.pid,
-                return_codes: subscribe.topics.iter().map(|_| SubscribeReturnCodes::Success(QoS::AtMostOnce)).collect(),
+                return_codes: subscribe
+                    .topics
+                    .iter()
+                    .map(|_| SubscribeReturnCodes::Success(QoS::AtMostOnce))
+                    .collect(),
             });
 
             send_packet(to_client_tx, &suback).await?;
@@ -443,10 +493,15 @@ async fn handle_packet<'a>(
 
         Packet::Unsubscribe(unsubscribe) => {
             let topics: Vec<String> = unsubscribe.topics.iter().map(|t| t.to_string()).collect();
-            info!("UNSUBSCRIBE from client '{}': topics={:?}", client_id, topics);
+            info!(
+                "UNSUBSCRIBE from client '{}': topics={:?}",
+                client_id, topics
+            );
 
             // Remove subscriptions from client registry
-            client_registry.remove_subscriptions(client_id, &topics).await;
+            client_registry
+                .remove_subscriptions(client_id, &topics)
+                .await;
 
             // Unsubscribe from brokers (only if no other clients are subscribed)
             // Note: For simplicity, we'll keep broker subscriptions active
@@ -469,7 +524,10 @@ async fn handle_packet<'a>(
     }
 }
 
-async fn send_packet<'a>(to_client_tx: &mpsc::Sender<ClientWrite>, packet: &Packet<'a>) -> Result<()> {
+async fn send_packet<'a>(
+    to_client_tx: &mpsc::Sender<ClientWrite>,
+    packet: &Packet<'a>,
+) -> Result<()> {
     // Use a fixed-size buffer for encoding
     let mut buf = vec![0u8; 4096];
 
@@ -477,7 +535,9 @@ async fn send_packet<'a>(to_client_tx: &mpsc::Sender<ClientWrite>, packet: &Pack
         .map_err(|e| anyhow::anyhow!("Failed to encode packet: {:?}", e))?;
 
     debug!("Encoded packet: {} bytes", bytes_written);
-    to_client_tx.send(ClientWrite::RawPacket(buf[..bytes_written].to_vec())).await
+    to_client_tx
+        .send(ClientWrite::RawPacket(buf[..bytes_written].to_vec()))
+        .await
         .context("Failed to send packet")?;
     Ok(())
 }

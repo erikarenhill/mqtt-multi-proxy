@@ -4,8 +4,8 @@ use crate::connection_manager::ConnectionManager;
 use crate::main_broker_client::MainBrokerClient;
 use crate::web_server::WebServer;
 use anyhow::Result;
-use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
@@ -32,7 +32,10 @@ impl MqttProxy {
 
         // Load broker configurations
         let broker_configs = broker_storage.list().await;
-        info!("Loaded {} downstream broker configurations", broker_configs.len());
+        info!(
+            "Loaded {} downstream broker configurations",
+            broker_configs.len()
+        );
 
         // Initialize connection manager (connects to downstream brokers)
         let connection_manager = Arc::new(RwLock::new(
@@ -41,20 +44,29 @@ impl MqttProxy {
                 Arc::new(crate::client_registry::ClientRegistry::new()),
                 config.main_broker.address.clone(),
                 config.main_broker.port,
-            ).await?,
+            )
+            .await?,
         ));
 
         // Initialize web server if enabled
-        let (web_server, message_tx, messages_received, messages_forwarded, total_latency_ns) = if config.web_ui.enabled {
-            let (web_server, msg_tx, recv_counter, fwd_counter, latency_counter) = WebServer::new(
-                config.web_ui.port,
-                Arc::clone(&connection_manager),
-                Arc::clone(&broker_storage),
-            );
-            (Some(web_server), Some(msg_tx), Some(recv_counter), Some(fwd_counter), Some(latency_counter))
-        } else {
-            (None, None, None, None, None)
-        };
+        let (web_server, message_tx, messages_received, messages_forwarded, total_latency_ns) =
+            if config.web_ui.enabled {
+                let (web_server, msg_tx, recv_counter, fwd_counter, latency_counter) =
+                    WebServer::new(
+                        config.web_ui.port,
+                        Arc::clone(&connection_manager),
+                        Arc::clone(&broker_storage),
+                    );
+                (
+                    Some(web_server),
+                    Some(msg_tx),
+                    Some(recv_counter),
+                    Some(fwd_counter),
+                    Some(latency_counter),
+                )
+            } else {
+                (None, None, None, None, None)
+            };
 
         Ok(Self {
             config,
@@ -70,7 +82,10 @@ impl MqttProxy {
 
     pub async fn run(self) -> Result<()> {
         info!("Starting MQTT Proxy Forwarder");
-        info!("Main broker: {}:{}", self.config.main_broker.address, self.config.main_broker.port);
+        info!(
+            "Main broker: {}:{}",
+            self.config.main_broker.address, self.config.main_broker.port
+        );
 
         // Start web server
         if let Some(web_server) = self.web_server {
@@ -90,7 +105,8 @@ impl MqttProxy {
             self.messages_received,
             self.messages_forwarded,
             self.total_latency_ns,
-        ).await?;
+        )
+        .await?;
 
         info!("Connecting to main broker and subscribing to topics...");
 

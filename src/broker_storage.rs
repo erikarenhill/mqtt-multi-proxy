@@ -59,11 +59,10 @@ impl BrokerStorage {
             let contents = std::fs::read_to_string(&store_path)
                 .with_context(|| format!("Failed to read store file: {:?}", store_path))?;
 
-            serde_json::from_str(&contents)
-                .unwrap_or_else(|e| {
-                    error!("Failed to parse broker store, starting fresh: {}", e);
-                    BrokerStore::default()
-                })
+            serde_json::from_str(&contents).unwrap_or_else(|e| {
+                error!("Failed to parse broker store, starting fresh: {}", e);
+                BrokerStore::default()
+            })
         } else {
             info!("No existing broker store found, creating new one");
             BrokerStore::default()
@@ -107,12 +106,19 @@ impl BrokerStorage {
     pub async fn update(&self, id: &str, updated: BrokerConfig) -> Result<()> {
         let mut store = self.store.write().await;
 
-        let index = store.brokers.iter().position(|b| b.id == id)
+        let index = store
+            .brokers
+            .iter()
+            .position(|b| b.id == id)
             .ok_or_else(|| anyhow::anyhow!("Broker with ID '{}' not found", id))?;
 
         // Check for name conflicts (excluding the current broker)
-        if store.brokers.iter().enumerate()
-            .any(|(i, b)| i != index && b.name == updated.name) {
+        if store
+            .brokers
+            .iter()
+            .enumerate()
+            .any(|(i, b)| i != index && b.name == updated.name)
+        {
             anyhow::bail!("Broker with name '{}' already exists", updated.name);
         }
 
@@ -127,7 +133,10 @@ impl BrokerStorage {
     pub async fn delete(&self, id: &str) -> Result<()> {
         let mut store = self.store.write().await;
 
-        let index = store.brokers.iter().position(|b| b.id == id)
+        let index = store
+            .brokers
+            .iter()
+            .position(|b| b.id == id)
             .ok_or_else(|| anyhow::anyhow!("Broker with ID '{}' not found", id))?;
 
         let broker = store.brokers.remove(index);
@@ -141,7 +150,9 @@ impl BrokerStorage {
     pub async fn toggle_enabled(&self, id: &str, enabled: bool) -> Result<()> {
         let mut store = self.store.write().await;
 
-        let broker = store.brokers.iter_mut()
+        let broker = store
+            .brokers
+            .iter_mut()
             .find(|b| b.id == id)
             .ok_or_else(|| anyhow::anyhow!("Broker with ID '{}' not found", id))?;
 
@@ -149,14 +160,18 @@ impl BrokerStorage {
         drop(store);
 
         self.save().await?;
-        info!("Broker '{}' {} successfully", id, if enabled { "enabled" } else { "disabled" });
+        info!(
+            "Broker '{}' {} successfully",
+            id,
+            if enabled { "enabled" } else { "disabled" }
+        );
         Ok(())
     }
 
     async fn save(&self) -> Result<()> {
         let store = self.store.read().await;
-        let json = serde_json::to_string_pretty(&*store)
-            .context("Failed to serialize broker store")?;
+        let json =
+            serde_json::to_string_pretty(&*store).context("Failed to serialize broker store")?;
 
         // Write to temp file first, then rename (atomic operation)
         let temp_path = self.store_path.with_extension("tmp");
@@ -173,7 +188,10 @@ impl BrokerStorage {
     pub async fn init_defaults(&self) -> Result<()> {
         let store = self.store.read().await;
         if !store.brokers.is_empty() {
-            info!("Loaded {} existing broker(s) from storage", store.brokers.len());
+            info!(
+                "Loaded {} existing broker(s) from storage",
+                store.brokers.len()
+            );
         } else {
             info!("No brokers configured. Add brokers via Web UI at http://localhost:3000");
         }

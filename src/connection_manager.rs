@@ -1,12 +1,12 @@
 use crate::broker_storage::BrokerConfig;
-use crate::client_registry::{ClientRegistry, ClientMessage};
+use crate::client_registry::{ClientMessage, ClientRegistry};
 use anyhow::Result;
 use bytes::Bytes;
 use rumqttc::{AsyncClient, Event, EventLoop, Incoming, MqttOptions, QoS};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
@@ -63,7 +63,9 @@ impl ConnectionManager {
                     &main_broker_address,
                     main_broker_port,
                     Arc::clone(&message_cache),
-                ).await {
+                )
+                .await
+                {
                     Ok(connection) => {
                         info!("Connected to broker: {}", config.name);
                         brokers.insert(config.id.clone(), connection);
@@ -117,8 +119,13 @@ impl ConnectionManager {
 
         // Create main broker client for bidirectional communication
         let main_broker_client = if config.bidirectional {
-            let main_client_id = format!("{}-reverse-{}", config.client_id_prefix, uuid::Uuid::new_v4());
-            let mut main_mqtt_options = MqttOptions::new(&main_client_id, main_broker_address, main_broker_port);
+            let main_client_id = format!(
+                "{}-reverse-{}",
+                config.client_id_prefix,
+                uuid::Uuid::new_v4()
+            );
+            let mut main_mqtt_options =
+                MqttOptions::new(&main_client_id, main_broker_address, main_broker_port);
             main_mqtt_options.set_keep_alive(std::time::Duration::from_secs(60));
             let (main_client, mut main_eventloop) = AsyncClient::new(main_mqtt_options, 10000);
 
@@ -132,18 +139,27 @@ impl ConnectionManager {
             // forwarding from mosquitto to downstream brokers. This connection is only
             // for the reverse direction (downstream broker -> mosquitto).
             tokio::spawn(async move {
-                info!("Starting reverse connection eventloop for '{}'", reverse_broker_name);
+                info!(
+                    "Starting reverse connection eventloop for '{}'",
+                    reverse_broker_name
+                );
                 loop {
                     match main_eventloop.poll().await {
                         Ok(Event::Incoming(Incoming::ConnAck(_))) => {
-                            info!("Reverse connection to main broker established for '{}'", reverse_broker_name);
+                            info!(
+                                "Reverse connection to main broker established for '{}'",
+                                reverse_broker_name
+                            );
                             // No subscriptions needed - this connection is only for publishing
                         }
                         Ok(_) => {
                             // Other events - connection is active, outgoing publishes are being sent
                         }
                         Err(e) => {
-                            warn!("Reverse connection error for '{}': {}", reverse_broker_name, e);
+                            warn!(
+                                "Reverse connection error for '{}': {}",
+                                reverse_broker_name, e
+                            );
                             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                         }
                     }
@@ -172,26 +188,38 @@ impl ConnectionManager {
                 match eventloop.poll().await {
                     Ok(Event::Incoming(Incoming::ConnAck(_))) => {
                         connected_clone.store(true, Ordering::Relaxed);
-                        info!("Broker '{}' connected (bidirectional: {})", broker_name_clone, bidirectional);
+                        info!(
+                            "Broker '{}' connected (bidirectional: {})",
+                            broker_name_clone, bidirectional
+                        );
 
                         // Subscribe to topics on bidirectional brokers to receive their messages
                         if bidirectional {
                             let topics_to_sub = if subscribe_topics.is_empty() {
                                 vec!["#".to_string()] // Subscribe to all topics if none specified
                             } else {
-                                subscribe_topics.iter().map(|t| {
-                                    if t.ends_with('#') || t.ends_with('+') {
-                                        t.clone()
-                                    } else {
-                                        format!("{}/#", t)
-                                    }
-                                }).collect()
+                                subscribe_topics
+                                    .iter()
+                                    .map(|t| {
+                                        if t.ends_with('#') || t.ends_with('+') {
+                                            t.clone()
+                                        } else {
+                                            format!("{}/#", t)
+                                        }
+                                    })
+                                    .collect()
                             };
 
                             for topic in &topics_to_sub {
                                 match client_clone.subscribe(topic, QoS::AtMostOnce).await {
-                                    Ok(_) => info!("Subscribed to '{}' on bidirectional broker '{}'", topic, broker_name_clone),
-                                    Err(e) => warn!("Failed to subscribe to '{}' on '{}': {}", topic, broker_name_clone, e),
+                                    Ok(_) => info!(
+                                        "Subscribed to '{}' on bidirectional broker '{}'",
+                                        topic, broker_name_clone
+                                    ),
+                                    Err(e) => warn!(
+                                        "Failed to subscribe to '{}' on '{}': {}",
+                                        topic, broker_name_clone, e
+                                    ),
                                 }
                             }
                         }
@@ -209,10 +237,14 @@ impl ConnectionManager {
                                 let hash = message_hash(&topic, &payload);
                                 let is_echo = {
                                     let mut cache = message_cache_clone.lock().await;
-                                    let entries = cache.entry(broker_id_clone.clone()).or_insert_with(Vec::new);
+                                    let entries = cache
+                                        .entry(broker_id_clone.clone())
+                                        .or_insert_with(Vec::new);
                                     let now = Instant::now();
                                     // Clean old entries
-                                    entries.retain(|e| now.duration_since(e.timestamp) < Duration::from_millis(500));
+                                    entries.retain(|e| {
+                                        now.duration_since(e.timestamp) < Duration::from_millis(500)
+                                    });
                                     // Check if this hash exists (meaning we forwarded it recently)
                                     if entries.iter().any(|e| e.hash == hash) {
                                         // Remove the entry so subsequent identical messages can get through
@@ -233,14 +265,22 @@ impl ConnectionManager {
                                     // Publish to main broker with timeout to prevent blocking
                                     match tokio::time::timeout(
                                         Duration::from_secs(5),
-                                        main_client.publish(topic, qos, retain, payload)
-                                    ).await {
+                                        main_client.publish(topic, qos, retain, payload),
+                                    )
+                                    .await
+                                    {
                                         Ok(Ok(_)) => {}
                                         Ok(Err(e)) => {
-                                            warn!("Failed to publish to main broker from '{}': {}", broker_name_clone, e);
+                                            warn!(
+                                                "Failed to publish to main broker from '{}': {}",
+                                                broker_name_clone, e
+                                            );
                                         }
                                         Err(_) => {
-                                            warn!("Publish to main broker timed out from '{}'", broker_name_clone);
+                                            warn!(
+                                                "Publish to main broker timed out from '{}'",
+                                                broker_name_clone
+                                            );
                                         }
                                     }
                                 }
@@ -279,7 +319,9 @@ impl ConnectionManager {
             &self.main_broker_address,
             self.main_broker_port,
             Arc::clone(&self.message_cache),
-        ).await {
+        )
+        .await
+        {
             Ok(connection) => {
                 info!("Broker '{}' connected", config.name);
                 self.brokers.insert(config.id.clone(), connection);
@@ -325,7 +367,9 @@ impl ConnectionManager {
             &self.main_broker_address,
             self.main_broker_port,
             Arc::clone(&self.message_cache),
-        ).await {
+        )
+        .await
+        {
             Ok(connection) => {
                 info!("Broker '{}' enabled and connected", name);
                 self.brokers.insert(id, connection);
@@ -392,13 +436,19 @@ impl ConnectionManager {
         messages_forwarded: &Option<Arc<AtomicU64>>,
     ) -> Result<()> {
         let broker_count = self.brokers.len();
-        let connected_count = self.brokers.values().filter(|b| b.connected.load(Ordering::Relaxed)).count();
+        let connected_count = self
+            .brokers
+            .values()
+            .filter(|b| b.connected.load(Ordering::Relaxed))
+            .count();
 
         // Calculate message hash for loop prevention
         let msg_hash = message_hash(topic, &payload);
 
         // Filter brokers by topic patterns (include bidirectional brokers - loop prevention is handled elsewhere)
-        let matching_brokers: Vec<_> = self.brokers.iter()
+        let matching_brokers: Vec<_> = self
+            .brokers
+            .iter()
             .filter(|(_id, broker)| {
                 if !broker.connected.load(Ordering::Relaxed) {
                     return false;
@@ -408,13 +458,21 @@ impl ConnectionManager {
                     return true;
                 }
                 // Check if topic matches any of the broker's patterns
-                broker.config.topics.iter().any(|pattern| Self::topic_matches_pattern(pattern, topic))
+                broker
+                    .config
+                    .topics
+                    .iter()
+                    .any(|pattern| Self::topic_matches_pattern(pattern, topic))
             })
             .collect();
 
         info!(
             "🔄 Forwarding message to {}/{} brokers (topic: '{}', {} bytes, qos: {:?})",
-            matching_brokers.len(), broker_count, topic, payload.len(), qos
+            matching_brokers.len(),
+            broker_count,
+            topic,
+            payload.len(),
+            qos
         );
 
         // Forward to all matching connected brokers
@@ -426,12 +484,16 @@ impl ConnectionManager {
                 // Use timeout to prevent blocking forever if broker's eventloop is stuck
                 let publish_result = tokio::time::timeout(
                     Duration::from_secs(5),
-                    broker.client.publish(topic, qos, retain, payload.clone())
-                ).await;
+                    broker.client.publish(topic, qos, retain, payload.clone()),
+                )
+                .await;
 
                 match publish_result {
                     Ok(Ok(_)) => {
-                        info!("  ✓ Forwarded to '{}' ({}:{})", broker.config.name, broker.config.address, broker.config.port);
+                        info!(
+                            "  ✓ Forwarded to '{}' ({}:{})",
+                            broker.config.name, broker.config.address, broker.config.port
+                        );
                         success_count += 1;
                         // Increment forwarded counter
                         if let Some(counter) = messages_forwarded {
@@ -444,13 +506,18 @@ impl ConnectionManager {
                             let entries = cache.entry(id.clone()).or_insert_with(Vec::new);
                             // Clean old entries first
                             let now = Instant::now();
-                            entries.retain(|e| now.duration_since(e.timestamp) < Duration::from_millis(500));
+                            entries.retain(|e| {
+                                now.duration_since(e.timestamp) < Duration::from_millis(500)
+                            });
                             // Add this message hash
                             entries.push(MessageCacheEntry {
                                 hash: msg_hash,
                                 timestamp: now,
                             });
-                            debug!("  📝 Recorded hash for echo detection (broker: '{}')", broker.config.name);
+                            debug!(
+                                "  📝 Recorded hash for echo detection (broker: '{}')",
+                                broker.config.name
+                            );
                         }
                     }
                     Ok(Err(e)) => {
@@ -459,7 +526,10 @@ impl ConnectionManager {
                     }
                     Err(_) => {
                         // Timeout - broker eventloop may be stuck
-                        warn!("  ⏱ Publish timeout for '{}' - eventloop may be stuck", broker.config.name);
+                        warn!(
+                            "  ⏱ Publish timeout for '{}' - eventloop may be stuck",
+                            broker.config.name
+                        );
                         broker.connected.store(false, Ordering::Relaxed);
                         fail_count += 1;
                     }
@@ -470,7 +540,10 @@ impl ConnectionManager {
         }
 
         if success_count > 0 {
-            info!("✅ Successfully forwarded to {}/{} connected brokers", success_count, connected_count);
+            info!(
+                "✅ Successfully forwarded to {}/{} connected brokers",
+                success_count, connected_count
+            );
         } else if connected_count == 0 {
             warn!("⚠️  No brokers connected - message not forwarded!");
         } else {
@@ -510,10 +583,16 @@ impl ConnectionManager {
                 for topic in topics {
                     match broker.client.subscribe(topic, QoS::AtMostOnce).await {
                         Ok(_) => {
-                            info!("📝 Subscribed to '{}' on broker '{}'", topic, broker.config.name);
+                            info!(
+                                "📝 Subscribed to '{}' on broker '{}'",
+                                topic, broker.config.name
+                            );
                         }
                         Err(e) => {
-                            warn!("Failed to subscribe to '{}' on broker '{}': {}", topic, broker.config.name, e);
+                            warn!(
+                                "Failed to subscribe to '{}' on broker '{}': {}",
+                                topic, broker.config.name, e
+                            );
                         }
                     }
                 }
@@ -528,10 +607,16 @@ impl ConnectionManager {
                 for topic in topics {
                     match broker.client.unsubscribe(topic).await {
                         Ok(_) => {
-                            debug!("Unsubscribed from '{}' on broker '{}'", topic, broker.config.name);
+                            debug!(
+                                "Unsubscribed from '{}' on broker '{}'",
+                                topic, broker.config.name
+                            );
                         }
                         Err(e) => {
-                            warn!("Failed to unsubscribe from '{}' on broker '{}': {}", topic, broker.config.name, e);
+                            warn!(
+                                "Failed to unsubscribe from '{}' on broker '{}': {}",
+                                topic, broker.config.name, e
+                            );
                         }
                     }
                 }

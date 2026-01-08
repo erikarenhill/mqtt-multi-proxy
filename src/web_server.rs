@@ -1,7 +1,10 @@
 use crate::broker_storage::{BrokerConfig, BrokerStorage};
 use crate::connection_manager::ConnectionManager;
 use axum::{
-    extract::{ws::{Message, WebSocket}, Path, State, WebSocketUpgrade},
+    extract::{
+        ws::{Message, WebSocket},
+        Path, State, WebSocketUpgrade,
+    },
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{delete, get, post, put},
@@ -9,8 +12,8 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use tower_http::services::ServeDir;
 use tracing::{debug, error, info};
@@ -41,7 +44,13 @@ impl WebServer {
         port: u16,
         connection_manager: Arc<RwLock<ConnectionManager>>,
         broker_storage: Arc<BrokerStorage>,
-    ) -> (Self, broadcast::Sender<MqttMessage>, Arc<AtomicU64>, Arc<AtomicU64>, Arc<AtomicU64>) {
+    ) -> (
+        Self,
+        broadcast::Sender<MqttMessage>,
+        Arc<AtomicU64>,
+        Arc<AtomicU64>,
+        Arc<AtomicU64>,
+    ) {
         let (message_tx, _) = broadcast::channel(1000); // Buffer 1000 messages
         let tx_clone = message_tx.clone();
         let messages_received = Arc::new(AtomicU64::new(0));
@@ -51,15 +60,21 @@ impl WebServer {
         let forwarded_clone = Arc::clone(&messages_forwarded);
         let latency_clone = Arc::clone(&total_latency_ns);
 
-        (Self {
-            port,
-            connection_manager,
-            broker_storage,
-            message_tx,
-            messages_received,
-            messages_forwarded,
-            total_latency_ns,
-        }, tx_clone, received_clone, forwarded_clone, latency_clone)
+        (
+            Self {
+                port,
+                connection_manager,
+                broker_storage,
+                message_tx,
+                messages_received,
+                messages_forwarded,
+                total_latency_ns,
+            },
+            tx_clone,
+            received_clone,
+            forwarded_clone,
+            latency_clone,
+        )
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
@@ -77,9 +92,7 @@ impl WebServer {
             .route("/api/brokers", get(list_brokers).post(add_broker))
             .route(
                 "/api/brokers/:id",
-                get(get_broker)
-                    .put(update_broker)
-                    .delete(delete_broker),
+                get(get_broker).put(update_broker).delete(delete_broker),
             )
             .route("/api/brokers/:id/toggle", post(toggle_broker))
             .route("/api/status", get(get_status))
@@ -195,13 +208,13 @@ async fn update_broker(
         // If username not provided or empty, keep existing; otherwise use new value
         username: match payload.username {
             Some(u) if !u.is_empty() => Some(u),
-            Some(_) => None, // Empty string means remove username
+            Some(_) => None,           // Empty string means remove username
             None => existing.username, // Not provided, keep existing
         },
         // If password not provided or empty, keep existing; otherwise use new value
         password: match payload.password {
             Some(p) if !p.is_empty() => Some(p),
-            Some(_) => None, // Empty string means remove password
+            Some(_) => None,           // Empty string means remove password
             None => existing.password, // Not provided, keep existing
         },
         bidirectional: payload.bidirectional,
@@ -265,9 +278,7 @@ async fn toggle_broker(
 }
 
 // Get overall system status
-async fn get_status(
-    State(state): State<AppState>,
-) -> Result<Json<SystemStatus>, AppError> {
+async fn get_status(State(state): State<AppState>) -> Result<Json<SystemStatus>, AppError> {
     let manager = state.connection_manager.read().await;
     let broker_statuses = manager.get_broker_status();
 

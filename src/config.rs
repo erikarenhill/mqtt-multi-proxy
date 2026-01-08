@@ -74,8 +74,8 @@ impl Config {
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path))?;
 
-        let config: Config = toml::from_str(&contents)
-            .with_context(|| "Failed to parse TOML configuration")?;
+        let config: Config =
+            toml::from_str(&contents).with_context(|| "Failed to parse TOML configuration")?;
 
         Ok(config)
     }

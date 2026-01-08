@@ -1,11 +1,11 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use bytes::Bytes;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 // Simulated message forwarding
 fn forward_message_sync(payload: &Bytes, broker_count: usize) {
     for _ in 0..broker_count {
         let _cloned = payload.clone(); // Bytes is cheap to clone (Arc internally)
-        // Simulate sending
+                                       // Simulate sending
         black_box(_cloned);
     }
 }
@@ -20,25 +20,19 @@ fn latency_benchmark(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("1_broker", size),
             &payload,
-            |b, payload| {
-                b.iter(|| forward_message_sync(payload, 1))
-            },
+            |b, payload| b.iter(|| forward_message_sync(payload, 1)),
         );
 
         group.bench_with_input(
             BenchmarkId::new("3_brokers", size),
             &payload,
-            |b, payload| {
-                b.iter(|| forward_message_sync(payload, 3))
-            },
+            |b, payload| b.iter(|| forward_message_sync(payload, 3)),
         );
 
         group.bench_with_input(
             BenchmarkId::new("10_brokers", size),
             &payload,
-            |b, payload| {
-                b.iter(|| forward_message_sync(payload, 10))
-            },
+            |b, payload| b.iter(|| forward_message_sync(payload, 10)),
         );
     }
 
