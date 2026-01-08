@@ -1,3 +1,10 @@
+## [1.1.3](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.1.2...v1.1.3) (2026-01-08)
+
+
+### Bug Fixes
+
+* camelCase everything in config ([8436ebd](https://github.com/erikarenhill/mqtt-multi-proxy/commit/8436ebd38ff147a35b668844cc1ee7a61e2aa622))
+
 ## [1.1.2](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.1.1...v1.1.2) (2026-01-08)
 
 
