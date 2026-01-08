@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g., v1.0.0). Leave empty for latest tag.'
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -20,6 +26,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get tag
+        id: get-tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ inputs.tag }}" ]; then
+              echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+            else
+              # Get latest tag
+              TAG=$(git describe --tags --abbrev=0)
+              echo "tag=$TAG" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout tag
+        run: git checkout ${{ steps.get-tag.outputs.tag }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -40,9 +66,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=${{ steps.get-tag.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.get-tag.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ steps.get-tag.outputs.tag }}
             type=raw,value=latest
 
       - name: Build and push Docker image
