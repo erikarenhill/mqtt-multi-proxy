@@ -12,6 +12,18 @@ use tracing::{debug, error, info, warn};
 use crate::client_registry::{ClientMessage, ClientRegistry};
 use crate::connection_manager::ConnectionManager;
 
+/// Context for handling MQTT packets - groups related parameters to reduce function argument count
+struct PacketHandlerContext<'a> {
+    to_client_tx: &'a mpsc::Sender<ClientWrite>,
+    connection_manager: &'a Arc<RwLock<ConnectionManager>>,
+    client_registry: &'a Arc<ClientRegistry>,
+    mqtt_msg_tx: &'a mpsc::Sender<ClientMessage>,
+    message_tx: &'a Option<tokio::sync::broadcast::Sender<crate::web_server::MqttMessage>>,
+    messages_received: &'a Option<Arc<AtomicU64>>,
+    messages_forwarded: &'a Option<Arc<AtomicU64>>,
+    total_latency_ns: &'a Option<Arc<AtomicU64>>,
+}
+
 /// Messages that can be sent to a client
 enum ClientWrite {
     /// MQTT message from bidirectional broker
@@ -215,6 +227,20 @@ async fn handle_client(
         }
 
         // Try to decode MQTT packets from buffer
+        // Create context for packet handling
+        let ctx = PacketHandlerContext {
+            to_client_tx: &to_client_tx_clone,
+            connection_manager: &connection_manager,
+            client_registry: &client_registry,
+            mqtt_msg_tx: &mqtt_msg_tx,
+            message_tx: &message_tx,
+            messages_received: &messages_received,
+            messages_forwarded: &messages_forwarded,
+            total_latency_ns: &total_latency_ns,
+        };
+
+        #[allow(clippy::while_let_loop)]
+        // Complex break conditions make while-let less readable here
         loop {
             // First, check if we can determine the packet length
             let packet_len = match parse_packet_length(&buffer[..]) {
@@ -237,20 +263,7 @@ async fn handle_client(
             match decode_slice(&packet_data) {
                 Ok(Some(packet)) => {
                     // Handle the packet
-                    match handle_packet(
-                        &to_client_tx_clone,
-                        &packet,
-                        &connection_manager,
-                        &client_registry,
-                        &mut client_id,
-                        &mut client_registered,
-                        &mqtt_msg_tx,
-                        &message_tx,
-                        &messages_received,
-                        &messages_forwarded,
-                        &total_latency_ns,
-                    )
-                    .await
+                    match handle_packet(&ctx, &packet, &mut client_id, &mut client_registered).await
                     {
                         Ok(should_continue) => {
                             if !should_continue {
@@ -291,17 +304,10 @@ async fn handle_client(
 }
 
 async fn handle_packet<'a>(
-    to_client_tx: &mpsc::Sender<ClientWrite>,
+    ctx: &PacketHandlerContext<'_>,
     packet: &Packet<'a>,
-    connection_manager: &Arc<RwLock<ConnectionManager>>,
-    client_registry: &Arc<ClientRegistry>,
     client_id: &mut String,
     client_registered: &mut bool,
-    mqtt_msg_tx: &mpsc::Sender<ClientMessage>,
-    message_tx: &Option<tokio::sync::broadcast::Sender<crate::web_server::MqttMessage>>,
-    messages_received: &Option<Arc<AtomicU64>>,
-    messages_forwarded: &Option<Arc<AtomicU64>>,
-    total_latency_ns: &Option<Arc<AtomicU64>>,
 ) -> Result<bool> {
     match packet {
         Packet::Connect(connect) => {
@@ -312,8 +318,8 @@ async fn handle_packet<'a>(
             );
 
             // Register client with registry (use mqtt_msg_tx for bidirectional messages)
-            client_registry
-                .register_client(client_id.clone(), mqtt_msg_tx.clone())
+            ctx.client_registry
+                .register_client(client_id.clone(), ctx.mqtt_msg_tx.clone())
                 .await;
             *client_registered = true;
             info!(
@@ -324,7 +330,7 @@ async fn handle_packet<'a>(
             // Send CONNACK - manually constructed for reliability
             // CONNACK: Fixed header (0x20) + Remaining length (0x02) + Session present (0x00) + Return code (0x00 = accepted)
             let connack_bytes = vec![0x20u8, 0x02, 0x00, 0x00];
-            to_client_tx
+            ctx.to_client_tx
                 .send(ClientWrite::RawPacket(connack_bytes))
                 .await
                 .context("Failed to send CONNACK")?;
@@ -337,7 +343,7 @@ async fn handle_packet<'a>(
             let start = Instant::now();
 
             let topic = &publish.topic_name;
-            let payload = Bytes::copy_from_slice(&publish.payload);
+            let payload = Bytes::copy_from_slice(publish.payload);
 
             // Extract QoS and packet ID from QosPid enum
             let (qos, pkid) = match &publish.qospid {
@@ -347,7 +353,7 @@ async fn handle_packet<'a>(
             };
 
             // Increment received message counter
-            if let Some(counter) = messages_received {
+            if let Some(counter) = ctx.messages_received {
                 counter.fetch_add(1, Ordering::Relaxed);
             }
 
@@ -361,7 +367,7 @@ async fn handle_packet<'a>(
             );
 
             // Debug: Log payload content (first 100 bytes)
-            if payload.len() > 0 {
+            if !payload.is_empty() {
                 let preview = if payload.len() <= 100 {
                     String::from_utf8_lossy(&payload).to_string()
                 } else {
@@ -374,7 +380,7 @@ async fn handle_packet<'a>(
             }
 
             // Broadcast to WebSocket clients
-            if let Some(tx) = message_tx {
+            if let Some(tx) = ctx.message_tx {
                 let qos_u8 = match qos {
                     rumqttc::QoS::AtMostOnce => 0,
                     rumqttc::QoS::AtLeastOnce => 1,
@@ -395,9 +401,9 @@ async fn handle_packet<'a>(
             }
 
             // Forward to all downstream brokers
-            let manager = connection_manager.read().await;
+            let manager = ctx.connection_manager.read().await;
             match manager
-                .forward_message(topic, payload, qos, publish.retain, messages_forwarded)
+                .forward_message(topic, payload, qos, publish.retain, ctx.messages_forwarded)
                 .await
             {
                 Ok(_) => {
@@ -410,7 +416,7 @@ async fn handle_packet<'a>(
 
             // Record latency
             let elapsed = start.elapsed();
-            if let Some(latency_counter) = total_latency_ns {
+            if let Some(latency_counter) = ctx.total_latency_ns {
                 latency_counter.fetch_add(elapsed.as_nanos() as u64, Ordering::Relaxed);
             }
 
@@ -427,7 +433,8 @@ async fn handle_packet<'a>(
                             // PUBACK: Fixed header (0x40) + Remaining length (0x02) + Packet ID (2 bytes, big-endian)
                             let puback_bytes =
                                 vec![0x40u8, 0x02, (pid_u16 >> 8) as u8, (pid_u16 & 0xFF) as u8];
-                            if to_client_tx
+                            if ctx
+                                .to_client_tx
                                 .send(ClientWrite::RawPacket(puback_bytes))
                                 .await
                                 .is_ok()
@@ -449,7 +456,7 @@ async fn handle_packet<'a>(
             debug!("PINGREQ from client '{}'", client_id);
             // PINGRESP: Fixed header (0xD0) + Remaining length (0x00)
             let pingresp_bytes = vec![0xD0u8, 0x00];
-            to_client_tx
+            ctx.to_client_tx
                 .send(ClientWrite::RawPacket(pingresp_bytes))
                 .await
                 .context("Failed to send PINGRESP")?;
@@ -466,13 +473,14 @@ async fn handle_packet<'a>(
             info!("SUBSCRIBE from client '{}': topics={:?}", client_id, topics);
 
             // Add subscriptions to client registry
-            let subscribed_topics = client_registry
+            let subscribed_topics = ctx
+                .client_registry
                 .add_subscriptions(client_id, topics.clone())
                 .await;
 
             // Subscribe to these topics on all bidirectional brokers
             if !subscribed_topics.is_empty() {
-                let manager = connection_manager.read().await;
+                let manager = ctx.connection_manager.read().await;
                 manager.subscribe_to_topics(&subscribed_topics).await;
             }
 
@@ -486,7 +494,7 @@ async fn handle_packet<'a>(
                     .collect(),
             });
 
-            send_packet(to_client_tx, &suback).await?;
+            send_packet(ctx.to_client_tx, &suback).await?;
             debug!("Sent SUBACK to client '{}'", client_id);
             Ok(true)
         }
@@ -499,7 +507,7 @@ async fn handle_packet<'a>(
             );
 
             // Remove subscriptions from client registry
-            client_registry
+            ctx.client_registry
                 .remove_subscriptions(client_id, &topics)
                 .await;
 
@@ -508,7 +516,7 @@ async fn handle_packet<'a>(
             // A more advanced implementation would track subscription counts
 
             let unsuback = Packet::Unsuback(unsubscribe.pid);
-            send_packet(to_client_tx, &unsuback).await?;
+            send_packet(ctx.to_client_tx, &unsuback).await?;
             Ok(true)
         }
 

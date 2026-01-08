@@ -2,7 +2,7 @@ use crate::config::MainBrokerConfig;
 use crate::connection_manager::ConnectionManager;
 use anyhow::Result;
 use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -26,6 +26,7 @@ struct MessageCacheEntry {
 
 pub struct MainBrokerClient {
     config: MainBrokerConfig,
+    #[allow(dead_code)] // Client is recreated in run() for proper eventloop handling
     client: AsyncClient,
     connection_manager: Arc<RwLock<ConnectionManager>>,
     message_tx: Option<tokio::sync::broadcast::Sender<crate::web_server::MqttMessage>>,

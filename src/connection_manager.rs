@@ -1,9 +1,9 @@
 use crate::broker_storage::BrokerConfig;
-use crate::client_registry::{ClientMessage, ClientRegistry};
+use crate::client_registry::ClientRegistry;
 use anyhow::Result;
 use bytes::Bytes;
-use rumqttc::{AsyncClient, Event, EventLoop, Incoming, MqttOptions, QoS};
-use std::collections::{HashMap, HashSet};
+use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -19,7 +19,7 @@ struct MessageCacheEntry {
 }
 
 /// Shared cache for deduplication - tracks messages published by each broker
-pub type MessageCache = Arc<Mutex<HashMap<String, Vec<MessageCacheEntry>>>>;
+type MessageCache = Arc<Mutex<HashMap<String, Vec<MessageCacheEntry>>>>;
 
 /// Create a hash from topic and payload for deduplication
 fn message_hash(topic: &str, payload: &[u8]) -> u64 {
@@ -42,6 +42,7 @@ struct BrokerConnection {
     config: BrokerConfig,
     client: AsyncClient,
     connected: Arc<AtomicBool>,
+    #[allow(dead_code)] // Kept for potential future use (e.g., graceful shutdown)
     main_broker_client: Option<AsyncClient>,
 }
 
@@ -88,7 +89,7 @@ impl ConnectionManager {
 
     async fn create_broker_connection(
         config: BrokerConfig,
-        client_registry: Arc<ClientRegistry>,
+        _client_registry: Arc<ClientRegistry>,
         main_broker_address: &str,
         main_broker_port: u16,
         message_cache: MessageCache,
@@ -578,7 +579,7 @@ impl ConnectionManager {
 
     /// Subscribe to topics on all bidirectional brokers
     pub async fn subscribe_to_topics(&self, topics: &[String]) {
-        for (_id, broker) in &self.brokers {
+        for broker in self.brokers.values() {
             if broker.config.bidirectional && broker.connected.load(Ordering::Relaxed) {
                 for topic in topics {
                     match broker.client.subscribe(topic, QoS::AtMostOnce).await {
@@ -602,7 +603,7 @@ impl ConnectionManager {
 
     /// Unsubscribe from topics on all bidirectional brokers
     pub async fn unsubscribe_from_topics(&self, topics: &[String]) {
-        for (_id, broker) in &self.brokers {
+        for broker in self.brokers.values() {
             if broker.config.bidirectional && broker.connected.load(Ordering::Relaxed) {
                 for topic in topics {
                     match broker.client.unsubscribe(topic).await {

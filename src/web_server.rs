@@ -7,7 +7,7 @@ use axum::{
     },
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::{delete, get, post, put},
+    routing::{get, post},
     Router,
 };
 use chrono::{DateTime, Utc};

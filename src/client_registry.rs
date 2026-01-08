@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use mqttrs::*;
 use rumqttc::QoS;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -25,6 +24,12 @@ struct ClientInfo {
 /// Registry for managing client connections and their subscriptions
 pub struct ClientRegistry {
     clients: Arc<RwLock<HashMap<String, ClientInfo>>>,
+}
+
+impl Default for ClientRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ClientRegistry {
@@ -135,6 +140,7 @@ impl ClientRegistry {
 
     /// Check if topic matches a subscription pattern
     /// Supports MQTT wildcards: + (single level), # (multi level)
+    #[allow(dead_code)] // Used in tests and reserved for future wildcard matching
     fn topic_matches(subscription: &str, topic: &str) -> bool {
         // Quick exact match
         if subscription == topic {

@@ -12,6 +12,7 @@ use tracing::{error, info};
 pub struct MqttProxy {
     config: Config,
     connection_manager: Arc<RwLock<ConnectionManager>>,
+    #[allow(dead_code)] // Storage is managed by WebServer, kept for potential direct access
     broker_storage: Arc<BrokerStorage>,
     web_server: Option<WebServer>,
     message_tx: Option<tokio::sync::broadcast::Sender<crate::web_server::MqttMessage>>,
