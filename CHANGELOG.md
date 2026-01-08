@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.0.1...v1.0.2) (2026-01-08)
+
+
+### Bug Fixes
+
+* add workflow_dispatch  to docker flow ([56602ac](https://github.com/erikarenhill/mqtt-multi-proxy/commit/56602acbd33130cccb1320106cccaa16a9cd7e94))
+
 ## [1.0.1](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.0.0...v1.0.1) (2026-01-08)
 
 
