@@ -1,0 +1,23 @@
+{
+  "name": "mqtt-multi-proxy",
+  "version": "0.0.0-semantically-released",
+  "private": true,
+  "description": "MQTT Multi Proxy",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erikarenhill/mqtt-multi-proxy.git"
+  },
+  "scripts": {
+    "semantic-release": "semantic-release",
+    "commitlint": "commitlint --edit"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^18.4.3",
+    "@commitlint/config-conventional": "^18.4.3",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "conventional-changelog-conventionalcommits": "^7.0.2",
+    "semantic-release": "^23.0.0"
+  }
+}
