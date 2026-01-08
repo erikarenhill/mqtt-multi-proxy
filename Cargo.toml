@@ -1,0 +1,84 @@
+[package]
+name = "mqtt-proxy"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <you@example.com>"]
+description = "High-performance 1:N MQTT proxy for device multiplexing"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/mqtt-proxy"
+
+[dependencies]
+# MQTT client
+rumqttc = "0.24"
+mqttrs = "0.4"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = "0.7"
+
+# Web server & WebSockets
+axum = { version = "0.7", features = ["ws"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Zero-copy buffers
+bytes = "1.5"
+
+# Configuration
+config = "0.14"
+
+# Metrics
+prometheus = "0.13"
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+parking_lot = "0.12"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["async_tokio"] }
+tokio-test = "0.4"
+mockall = "0.12"
+tempfile = "3.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.release-debug]
+inherits = "release"
+debug = true
+strip = false
+
+[[bench]]
+name = "latency"
+harness = false
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[lib]
+name = "mqtt_proxy"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mqtt-proxy"
+path = "src/main.rs"

@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Rust build artifacts
+target/
+Cargo.lock
+**/*.rs.bk
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Tests
+tests/
+
+# CI/CD
+.github/
+
+# Config (will be mounted)
+config/*.toml
+!config/*.toml.example
+
+# Web UI
+web-ui/node_modules/
+# web-ui/dist/  # Commented out - we need dist for serving static files
+web-ui/build/
+
+# Misc
+tmp/
+*.log
