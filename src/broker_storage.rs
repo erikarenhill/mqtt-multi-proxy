@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BrokerConfig {
     pub id: String,
     pub name: String,
