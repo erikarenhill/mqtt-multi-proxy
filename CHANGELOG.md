@@ -1,3 +1,10 @@
+## [1.1.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.0.2...v1.1.0) (2026-01-08)
+
+
+### Features
+
+* embedd default configs ([6acb471](https://github.com/erikarenhill/mqtt-multi-proxy/commit/6acb4714ac7dd9ff493e643f5cdee04d1848ce08))
+
 ## [1.0.2](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.0.1...v1.0.2) (2026-01-08)
 
 
