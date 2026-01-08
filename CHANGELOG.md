@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.1.1...v1.1.2) (2026-01-08)
+
+
+### Bug Fixes
+
+* allow only 1 bi-directional broker, subscribe anyway, we handle loopbacks in other ways ([dd594bd](https://github.com/erikarenhill/mqtt-multi-proxy/commit/dd594bde22bd0572c092a8de225280a0f735a346))
+
 ## [1.1.1](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.1.0...v1.1.1) (2026-01-08)
 
 
