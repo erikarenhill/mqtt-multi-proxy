@@ -13,6 +13,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      actions: write
 
     steps:
       - name: Checkout repository
@@ -31,6 +32,23 @@ jobs:
         run: npm ci
 
       - name: Run semantic-release
+        id: semantic-release
+        uses: cycjimmy/semantic-release-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+
+      - name: Trigger Docker build
+        if: steps.semantic-release.outputs.new_release_published == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'docker.yml',
+              ref: 'main',
+              inputs: {
+                tag: 'v${{ steps.semantic-release.outputs.new_release_version }}'
+              }
+            })
+            console.log('Triggered Docker build for v${{ steps.semantic-release.outputs.new_release_version }}')
