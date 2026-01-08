@@ -8,7 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
+use tokio::sync::{watch, Mutex};
 use tracing::{debug, error, info, warn};
 
 /// Cache entry for tracking recently published messages from bidirectional brokers
@@ -42,8 +42,10 @@ struct BrokerConnection {
     config: BrokerConfig,
     client: AsyncClient,
     connected: Arc<AtomicBool>,
-    #[allow(dead_code)] // Kept for potential future use (e.g., graceful shutdown)
+    #[allow(dead_code)]
     main_broker_client: Option<AsyncClient>,
+    /// Shutdown signal sender - dropping this signals tasks to stop
+    shutdown_tx: watch::Sender<bool>,
 }
 
 impl ConnectionManager {
@@ -115,6 +117,9 @@ impl ConnectionManager {
 
         let (client, mut eventloop) = AsyncClient::new(mqtt_options, 10000);
 
+        // Create shutdown channel for graceful termination
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+
         // Clone broker name early for use in spawned tasks
         let broker_name = config.name.clone();
 
@@ -132,6 +137,7 @@ impl ConnectionManager {
 
             // Clone data for the reverse connection handler
             let reverse_broker_name = format!("{} (reverse)", broker_name);
+            let mut reverse_shutdown_rx = shutdown_rx.clone();
 
             // Spawn eventloop handler for reverse connection to main broker
             // This eventloop is needed to drive outgoing publishes to mosquitto
@@ -145,23 +151,31 @@ impl ConnectionManager {
                     reverse_broker_name
                 );
                 loop {
-                    match main_eventloop.poll().await {
-                        Ok(Event::Incoming(Incoming::ConnAck(_))) => {
-                            info!(
-                                "Reverse connection to main broker established for '{}'",
-                                reverse_broker_name
-                            );
-                            // No subscriptions needed - this connection is only for publishing
+                    tokio::select! {
+                        _ = reverse_shutdown_rx.changed() => {
+                            info!("Shutting down reverse connection for '{}'", reverse_broker_name);
+                            break;
                         }
-                        Ok(_) => {
-                            // Other events - connection is active, outgoing publishes are being sent
-                        }
-                        Err(e) => {
-                            warn!(
-                                "Reverse connection error for '{}': {}",
-                                reverse_broker_name, e
-                            );
-                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        result = main_eventloop.poll() => {
+                            match result {
+                                Ok(Event::Incoming(Incoming::ConnAck(_))) => {
+                                    info!(
+                                        "Reverse connection to main broker established for '{}'",
+                                        reverse_broker_name
+                                    );
+                                    // No subscriptions needed - this connection is only for publishing
+                                }
+                                Ok(_) => {
+                                    // Other events - connection is active, outgoing publishes are being sent
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        "Reverse connection error for '{}': {}",
+                                        reverse_broker_name, e
+                                    );
+                                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                }
+                            }
                         }
                     }
                 }
@@ -182,11 +196,18 @@ impl ConnectionManager {
         let subscribe_topics = config.topics.clone();
         let client_clone = client.clone();
         let message_cache_clone = Arc::clone(&message_cache);
+        let mut main_shutdown_rx = shutdown_rx.clone();
 
         // Spawn connection handler
         tokio::spawn(async move {
             loop {
-                match eventloop.poll().await {
+                tokio::select! {
+                    _ = main_shutdown_rx.changed() => {
+                        info!("Shutting down connection for broker '{}'", broker_name_clone);
+                        break;
+                    }
+                    result = eventloop.poll() => {
+                        match result {
                     Ok(Event::Incoming(Incoming::ConnAck(_))) => {
                         connected_clone.store(true, Ordering::Relaxed);
                         info!(
@@ -288,13 +309,15 @@ impl ConnectionManager {
                             }
                         }
                     }
-                    Ok(_) => {
-                        // Other events - connection is active
-                    }
-                    Err(e) => {
-                        connected_clone.store(false, Ordering::Relaxed);
-                        warn!("MQTT connection error for '{}': {}", broker_name_clone, e);
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            Ok(_) => {
+                                // Other events - connection is active
+                            }
+                            Err(e) => {
+                                connected_clone.store(false, Ordering::Relaxed);
+                                warn!("MQTT connection error for '{}': {}", broker_name_clone, e);
+                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            }
+                        }
                     }
                 }
             }
@@ -305,6 +328,7 @@ impl ConnectionManager {
             client,
             connected,
             main_broker_client,
+            shutdown_tx,
         })
     }
 
@@ -336,8 +360,11 @@ impl ConnectionManager {
     }
 
     pub async fn update_broker(&mut self, config: BrokerConfig) -> Result<()> {
-        // Remove old connection
-        self.brokers.remove(&config.id);
+        // Signal shutdown to old connection tasks before removing
+        if let Some(broker) = self.brokers.remove(&config.id) {
+            let _ = broker.shutdown_tx.send(true);
+            info!("Broker '{}' shutdown signal sent for update", broker.config.name);
+        }
 
         // Add new connection
         if config.enabled {
@@ -349,6 +376,7 @@ impl ConnectionManager {
 
     pub async fn remove_broker(&mut self, id: &str) -> Result<()> {
         if let Some(broker) = self.brokers.remove(id) {
+            let _ = broker.shutdown_tx.send(true);
             info!("Broker '{}' removed", broker.config.name);
         }
         Ok(())
@@ -358,8 +386,10 @@ impl ConnectionManager {
         let id = config.id.clone();
         let name = config.name.clone();
 
-        // Remove if already exists
-        self.brokers.remove(&id);
+        // Signal shutdown to old connection if exists
+        if let Some(broker) = self.brokers.remove(&id) {
+            let _ = broker.shutdown_tx.send(true);
+        }
 
         // Create new connection
         match Self::create_broker_connection(
@@ -385,6 +415,7 @@ impl ConnectionManager {
 
     pub async fn disable_broker(&mut self, id: &str) -> Result<()> {
         if let Some(broker) = self.brokers.remove(id) {
+            let _ = broker.shutdown_tx.send(true);
             info!("Broker '{}' disabled and disconnected", broker.config.name);
         }
         Ok(())
