@@ -31,7 +31,7 @@ function MessageViewer() {
     const wsUrl = `${protocol}//${window.location.host}/ws/messages`
 
     let ws: WebSocket
-    let reconnectTimeout: number
+    let reconnectTimeout: ReturnType<typeof setTimeout>
 
     const connect = () => {
       ws = new WebSocket(wsUrl)
