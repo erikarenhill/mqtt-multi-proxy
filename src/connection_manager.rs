@@ -163,10 +163,13 @@ impl ConnectionManager {
                     .dangerous()
                     .with_custom_certificate_verifier(Arc::new(NoVerifier))
                     .with_no_client_auth();
-                mqtt_options.set_transport(Transport::tls_with_config(
-                    TlsConfiguration::Rustls(Arc::new(tls_config)),
-                ));
-                warn!("TLS enabled for broker '{}' (insecure: certificate verification disabled)", config.name);
+                mqtt_options.set_transport(Transport::tls_with_config(TlsConfiguration::Rustls(
+                    Arc::new(tls_config),
+                )));
+                warn!(
+                    "TLS enabled for broker '{}' (insecure: certificate verification disabled)",
+                    config.name
+                );
             } else {
                 // Use default TLS with system root certificates
                 mqtt_options.set_transport(Transport::tls_with_default_config());
@@ -427,7 +430,10 @@ impl ConnectionManager {
         // Signal shutdown to old connection tasks before removing
         if let Some(broker) = self.brokers.remove(&config.id) {
             let _ = broker.shutdown_tx.send(true);
-            info!("Broker '{}' shutdown signal sent for update", broker.config.name);
+            info!(
+                "Broker '{}' shutdown signal sent for update",
+                broker.config.name
+            );
         }
 
         // Add new connection

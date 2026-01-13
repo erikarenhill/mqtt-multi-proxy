@@ -57,7 +57,10 @@ impl BrokerConfig {
             match decrypt_password(password) {
                 Some(decrypted) => config.password = Some(decrypted),
                 None => {
-                    warn!("Failed to decrypt password for broker '{}', using as-is", self.name);
+                    warn!(
+                        "Failed to decrypt password for broker '{}', using as-is",
+                        self.name
+                    );
                 }
             }
         }
