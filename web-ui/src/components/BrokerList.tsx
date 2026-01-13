@@ -12,6 +12,7 @@ interface Broker {
   insecureSkipVerify: boolean
   bidirectional: boolean
   topics: string[]
+  subscriptionTopics: string[]
 }
 
 interface BrokerListProps {
@@ -95,10 +96,22 @@ export default function BrokerList({ brokers, onDelete, onToggle, onEdit }: Brok
                 )}
                 {broker.topics && broker.topics.length > 0 && (
                   <div>
-                    <p><strong>Topics:</strong></p>
+                    <p><strong>Topic Filters:</strong></p>
                     <div className="topic-chips">
                       {broker.topics.map((topic) => (
                         <div key={topic} className="topic-chip-small">
+                          {topic}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {broker.bidirectional && broker.subscriptionTopics && broker.subscriptionTopics.length > 0 && (
+                  <div>
+                    <p><strong>Subscriptions:</strong></p>
+                    <div className="topic-chips">
+                      {broker.subscriptionTopics.map((topic) => (
+                        <div key={topic} className="topic-chip-small subscription">
                           {topic}
                         </div>
                       ))}

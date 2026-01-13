@@ -11,6 +11,7 @@ interface BrokerFormData {
   insecureSkipVerify: boolean
   bidirectional: boolean
   topics: string[]
+  subscriptionTopics: string[]
 }
 
 interface AddBrokerFormProps {
@@ -32,15 +33,18 @@ export default function AddBrokerForm({ onAdd, onCancel, initialBroker, isEditin
     insecureSkipVerify: false,
     bidirectional: false,
     topics: [],
+    subscriptionTopics: [],
   })
   const [topicInput, setTopicInput] = useState('')
+  const [subscriptionTopicInput, setSubscriptionTopicInput] = useState('')
   const [keepPassword, setKeepPassword] = useState(isEditing) // Default to true when editing
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // If keeping password, don't send password field
     if (isEditing && keepPassword) {
-      const { password: _, ...dataWithoutPassword } = formData
+      const { password: _password, ...dataWithoutPassword } = formData
+      void _password // Intentionally unused - excluding password from submission
       onAdd(dataWithoutPassword as BrokerFormData)
     } else {
       onAdd(formData)
@@ -70,6 +74,28 @@ export default function AddBrokerForm({ onAdd, onCancel, initialBroker, isEditin
     if (e.key === 'Enter') {
       e.preventDefault()
       addTopic()
+    }
+  }
+
+  const addSubscriptionTopic = () => {
+    const topic = subscriptionTopicInput.trim()
+    if (topic && !formData.subscriptionTopics.includes(topic)) {
+      setFormData(prev => ({ ...prev, subscriptionTopics: [...prev.subscriptionTopics, topic] }))
+      setSubscriptionTopicInput('')
+    }
+  }
+
+  const removeSubscriptionTopic = (topicToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      subscriptionTopics: prev.subscriptionTopics.filter(t => t !== topicToRemove)
+    }))
+  }
+
+  const handleSubscriptionTopicKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      addSubscriptionTopic()
     }
   }
 
@@ -245,6 +271,46 @@ export default function AddBrokerForm({ onAdd, onCancel, initialBroker, isEditin
           </div>
         )}
       </div>
+
+      {formData.bidirectional && (
+        <div className="form-group">
+          <label htmlFor="subscriptionTopics">Subscription Topics (optional)</label>
+          <div className="topic-input-wrapper">
+            <input
+              id="subscriptionTopics"
+              type="text"
+              value={subscriptionTopicInput}
+              onChange={(e) => setSubscriptionTopicInput(e.target.value)}
+              onKeyPress={handleSubscriptionTopicKeyPress}
+              placeholder="e.g., homeassistant/# or zigbee2mqtt/#"
+            />
+            <button type="button" className="btn-add-topic" onClick={addSubscriptionTopic}>
+              Add
+            </button>
+          </div>
+          <small>
+            Topics to subscribe to on this broker. If empty, uses the topic filters above.
+            Use this to receive different topics than what you filter for forwarding.
+          </small>
+          {formData.subscriptionTopics.length > 0 && (
+            <div className="topic-chips">
+              {formData.subscriptionTopics.map((topic) => (
+                <div key={topic} className="topic-chip">
+                  <span>{topic}</span>
+                  <button
+                    type="button"
+                    className="remove-chip"
+                    onClick={() => removeSubscriptionTopic(topic)}
+                    aria-label={`Remove ${topic}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="form-actions">
         <button type="button" className="btn-secondary" onClick={onCancel}>

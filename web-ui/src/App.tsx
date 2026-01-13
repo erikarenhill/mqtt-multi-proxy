@@ -19,6 +19,7 @@ interface Broker {
   insecureSkipVerify: boolean
   bidirectional: boolean
   topics: string[]
+  subscriptionTopics: string[]
 }
 
 interface BrokerStatus {
@@ -38,6 +39,7 @@ interface BrokerFormData {
   insecureSkipVerify?: boolean
   bidirectional?: boolean
   topics?: string[]
+  subscriptionTopics?: string[]
 }
 
 function App() {
@@ -63,10 +65,12 @@ function App() {
       const statusData = await statusResponse.json()
 
       // Merge the data - add connected state from status to broker configs
-      const brokersWithStatus = brokersData.brokers.map((broker: Broker) => {
+      // Also map snake_case API response to camelCase for frontend
+      const brokersWithStatus = brokersData.brokers.map((broker: Broker & { subscription_topics?: string[] }) => {
         const status = statusData.brokers.find((s: BrokerStatus) => s.id === broker.id)
         return {
           ...broker,
+          subscriptionTopics: broker.subscription_topics || broker.subscriptionTopics || [],
           connected: status?.connected || false,
         }
       })
@@ -81,10 +85,17 @@ function App() {
 
   const handleAddBroker = async (brokerData: BrokerFormData) => {
     try {
+      // Map camelCase to snake_case for API
+      const apiData = {
+        ...brokerData,
+        subscription_topics: brokerData.subscriptionTopics,
+      }
+      delete (apiData as Record<string, unknown>).subscriptionTopics
+
       const response = await fetch('/api/brokers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(brokerData),
+        body: JSON.stringify(apiData),
       })
 
       if (response.ok) {
@@ -152,6 +163,7 @@ function App() {
       insecureSkipVerify: broker.insecureSkipVerify,
       bidirectional: broker.bidirectional,
       topics: broker.topics,
+      subscriptionTopics: broker.subscriptionTopics || [],
       connected: broker.connected,
       enabled: broker.enabled,
     })
@@ -162,7 +174,8 @@ function App() {
 
     try {
       // Ensure all required fields are present
-      const updateData: BrokerFormData & { username?: string; password?: string } = {
+      // Map camelCase to snake_case for API
+      const updateData: Record<string, unknown> = {
         name: brokerData.name,
         address: brokerData.address,
         port: brokerData.port,
@@ -172,6 +185,7 @@ function App() {
         insecureSkipVerify: brokerData.insecureSkipVerify || false,
         bidirectional: brokerData.bidirectional || false,
         topics: brokerData.topics || [],
+        subscription_topics: brokerData.subscriptionTopics || [],
       }
 
       // Only include username/password if they have values
