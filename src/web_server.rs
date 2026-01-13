@@ -174,6 +174,7 @@ async fn add_broker(
         ca_cert_path: payload.ca_cert_path,
         bidirectional: payload.bidirectional.unwrap_or(false),
         topics: payload.topics.unwrap_or_default(),
+        subscription_topics: payload.subscription_topics.unwrap_or_default(),
     };
 
     state.broker_storage.add(broker.clone()).await?;
@@ -224,6 +225,7 @@ async fn update_broker(
         insecure_skip_verify: payload.insecure_skip_verify,
         ca_cert_path: payload.ca_cert_path,
         topics: payload.topics,
+        subscription_topics: payload.subscription_topics,
     };
 
     state.broker_storage.update(&id, updated.clone()).await?;
@@ -336,6 +338,8 @@ struct AddBrokerRequest {
     bidirectional: Option<bool>,
     #[serde(default)]
     topics: Option<Vec<String>>,
+    #[serde(default)]
+    subscription_topics: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -358,6 +362,8 @@ struct UpdateBrokerRequest {
     bidirectional: bool,
     #[serde(default)]
     topics: Vec<String>,
+    #[serde(default)]
+    subscription_topics: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -383,6 +389,7 @@ pub struct BrokerStatus {
     pub enabled: bool,
     pub bidirectional: bool,
     pub topics: Vec<String>,
+    pub subscription_topics: Vec<String>,
 }
 
 // Error handling

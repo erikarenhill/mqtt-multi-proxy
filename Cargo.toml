@@ -9,8 +9,13 @@ repository = "https://github.com/yourusername/mqtt-proxy"
 
 [dependencies]
 # MQTT client
-rumqttc = "0.24"
+rumqttc = { version = "0.24", features = ["use-rustls"] }
 mqttrs = "0.4"
+
+# TLS (versions compatible with rumqttc 0.24)
+rustls = "0.22"
+rustls-native-certs = "0.7"
+rustls-pki-types = "1.0"
 
 # Async runtime
 tokio = { version = "1.35", features = ["full"] }

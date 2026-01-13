@@ -2,7 +2,7 @@ use crate::broker_storage::BrokerConfig;
 use crate::client_registry::ClientRegistry;
 use anyhow::Result;
 use bytes::Bytes;
-use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS};
+use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS, TlsConfiguration, Transport};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -27,6 +27,56 @@ fn message_hash(topic: &str, payload: &[u8]) -> u64 {
     topic.hash(&mut hasher);
     payload.hash(&mut hasher);
     hasher.finish()
+}
+
+/// TLS certificate verifier that accepts any certificate (for insecure_skip_verify)
+#[derive(Debug)]
+struct NoVerifier;
+
+impl rustls::client::danger::ServerCertVerifier for NoVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls_pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls_pki_types::CertificateDer<'_>],
+        _server_name: &rustls_pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls_pki_types::UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls_pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls_pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        vec![
+            rustls::SignatureScheme::RSA_PKCS1_SHA256,
+            rustls::SignatureScheme::RSA_PKCS1_SHA384,
+            rustls::SignatureScheme::RSA_PKCS1_SHA512,
+            rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
+            rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
+            rustls::SignatureScheme::ECDSA_NISTP521_SHA512,
+            rustls::SignatureScheme::RSA_PSS_SHA256,
+            rustls::SignatureScheme::RSA_PSS_SHA384,
+            rustls::SignatureScheme::RSA_PSS_SHA512,
+            rustls::SignatureScheme::ED25519,
+        ]
+    }
 }
 
 pub struct ConnectionManager {
@@ -105,15 +155,24 @@ impl ConnectionManager {
             mqtt_options.set_credentials(username, password);
         }
 
-        // TODO: Add TLS support
-        // if config.use_tls {
-        //     let transport = if config.insecure_skip_verify {
-        //         // Skip certificate verification
-        //     } else {
-        //         // Proper certificate verification
-        //     };
-        //     mqtt_options.set_transport(transport);
-        // }
+        // Configure TLS if enabled
+        if config.use_tls {
+            if config.insecure_skip_verify {
+                // Skip certificate verification (useful for self-signed certs)
+                let tls_config = rustls::ClientConfig::builder()
+                    .dangerous()
+                    .with_custom_certificate_verifier(Arc::new(NoVerifier))
+                    .with_no_client_auth();
+                mqtt_options.set_transport(Transport::tls_with_config(
+                    TlsConfiguration::Rustls(Arc::new(tls_config)),
+                ));
+                warn!("TLS enabled for broker '{}' (insecure: certificate verification disabled)", config.name);
+            } else {
+                // Use default TLS with system root certificates
+                mqtt_options.set_transport(Transport::tls_with_default_config());
+                info!("TLS enabled for broker '{}'", config.name);
+            }
+        }
 
         let (client, mut eventloop) = AsyncClient::new(mqtt_options, 10000);
 
@@ -193,7 +252,12 @@ impl ConnectionManager {
         let broker_id_clone = config.id.clone();
         let bidirectional = config.bidirectional;
         let main_client_clone = main_broker_client.clone();
-        let subscribe_topics = config.topics.clone();
+        // Use subscription_topics if configured, otherwise fall back to topics
+        let subscribe_topics = if config.subscription_topics.is_empty() {
+            config.topics.clone()
+        } else {
+            config.subscription_topics.clone()
+        };
         let client_clone = client.clone();
         let message_cache_clone = Arc::clone(&message_cache);
         let mut main_shutdown_rx = shutdown_rx.clone();
@@ -498,7 +562,7 @@ impl ConnectionManager {
             })
             .collect();
 
-        info!(
+        debug!(
             "🔄 Forwarding message to {}/{} brokers (topic: '{}', {} bytes, qos: {:?})",
             matching_brokers.len(),
             broker_count,
@@ -522,7 +586,7 @@ impl ConnectionManager {
 
                 match publish_result {
                     Ok(Ok(_)) => {
-                        info!(
+                        debug!(
                             "  ✓ Forwarded to '{}' ({}:{})",
                             broker.config.name, broker.config.address, broker.config.port
                         );
@@ -572,7 +636,7 @@ impl ConnectionManager {
         }
 
         if success_count > 0 {
-            info!(
+            debug!(
                 "✅ Successfully forwarded to {}/{} connected brokers",
                 success_count, connected_count
             );
@@ -597,6 +661,7 @@ impl ConnectionManager {
                 enabled: broker.config.enabled,
                 bidirectional: broker.config.bidirectional,
                 topics: broker.config.topics.clone(),
+                subscription_topics: broker.config.subscription_topics.clone(),
             })
             .collect()
     }

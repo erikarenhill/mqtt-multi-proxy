@@ -28,8 +28,12 @@ pub struct BrokerConfig {
     pub ca_cert_path: Option<String>,
     #[serde(default)]
     pub bidirectional: bool,
+    /// Topics to filter which messages get forwarded to this broker
     #[serde(default)]
     pub topics: Vec<String>,
+    /// Topics to subscribe to on bidirectional brokers (if empty, uses topics list)
+    #[serde(default)]
+    pub subscription_topics: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -313,6 +317,7 @@ mod tests {
             ca_cert_path: None,
             bidirectional: false,
             topics: vec![],
+            subscription_topics: vec![],
         };
 
         storage.add(broker.clone()).await.unwrap();
@@ -362,6 +367,7 @@ mod tests {
                 ca_cert_path: None,
                 bidirectional: false,
                 topics: vec![],
+                subscription_topics: vec![],
             };
             storage.add(broker).await.unwrap();
         }
