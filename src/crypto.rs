@@ -145,11 +145,16 @@ pub fn warn_if_encryption_not_configured() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Mutex to serialize tests that modify the environment variable
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     fn with_test_secret<F, R>(f: F) -> R
     where
         F: FnOnce() -> R,
     {
+        let _guard = ENV_MUTEX.lock().unwrap();
         env::set_var(ENV_SECRET_KEY, "test-secret-key-12345");
         let result = f();
         env::remove_var(ENV_SECRET_KEY);
@@ -204,6 +209,7 @@ mod tests {
 
     #[test]
     fn test_no_secret_configured() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         env::remove_var(ENV_SECRET_KEY);
 
         let password = "plaintext-password";
