@@ -85,17 +85,10 @@ function App() {
 
   const handleAddBroker = async (brokerData: BrokerFormData) => {
     try {
-      // Map camelCase to snake_case for API
-      const apiData = {
-        ...brokerData,
-        subscription_topics: brokerData.subscriptionTopics,
-      }
-      delete (apiData as Record<string, unknown>).subscriptionTopics
-
       const response = await fetch('/api/brokers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(apiData),
+        body: JSON.stringify(brokerData),
       })
 
       if (response.ok) {
@@ -174,7 +167,6 @@ function App() {
 
     try {
       // Ensure all required fields are present
-      // Map camelCase to snake_case for API
       const updateData: Record<string, unknown> = {
         name: brokerData.name,
         address: brokerData.address,
@@ -185,7 +177,7 @@ function App() {
         insecureSkipVerify: brokerData.insecureSkipVerify || false,
         bidirectional: brokerData.bidirectional || false,
         topics: brokerData.topics || [],
-        subscription_topics: brokerData.subscriptionTopics || [],
+        subscriptionTopics: brokerData.subscriptionTopics || [],
       }
 
       // Only include username/password if they have values
