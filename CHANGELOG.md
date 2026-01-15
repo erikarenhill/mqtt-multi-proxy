@@ -1,3 +1,28 @@
+## [1.2.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.1.3...v1.2.0) (2026-01-15)
+
+
+### Features
+
+* add keep password checkbox when editing brokers ([4ea21fb](https://github.com/erikarenhill/mqtt-multi-proxy/commit/4ea21fbad4dcc8b4ab17718e0f2faf052db975e8))
+* add password encryption for broker config storage ([362af31](https://github.com/erikarenhill/mqtt-multi-proxy/commit/362af31b05c722bcab23cdc1930f4882773dc102))
+* add TLS support and separate subscription topics ([f9a94ee](https://github.com/erikarenhill/mqtt-multi-proxy/commit/f9a94ee55fe975e0c9d46a99577cccd698c48d5f))
+* **web-ui:** add subscription topics field for bidirectional brokers ([ebc74e3](https://github.com/erikarenhill/mqtt-multi-proxy/commit/ebc74e3be79abfecf98946ecc45589e3e8ba3cd0))
+
+
+### Bug Fixes
+
+* add graceful shutdown for broker connections ([fddb5f0](https://github.com/erikarenhill/mqtt-multi-proxy/commit/fddb5f0c5ca1f965b70345073a34f950d8f0cc22))
+* always subscribe to all topics for WebUI monitoring ([2e14c92](https://github.com/erikarenhill/mqtt-multi-proxy/commit/2e14c92fa7400723f94c30481daba8d6cc84f994))
+* **ci:** resolve semantic-release Date.prototype error ([8313b8b](https://github.com/erikarenhill/mqtt-multi-proxy/commit/8313b8b6e110a91d0d8efe56d560b6f36fbb38df))
+* correct TypeScript setTimeout type ([deae66d](https://github.com/erikarenhill/mqtt-multi-proxy/commit/deae66d185a92907a03f07372751762f2c192fb1))
+* **tests:** resolve crypto test race condition ([c4ccf28](https://github.com/erikarenhill/mqtt-multi-proxy/commit/c4ccf28563c3223f61d157bbf161b21bd51db08f))
+* trigger Docker build workflow on new releases ([b1efd27](https://github.com/erikarenhill/mqtt-multi-proxy/commit/b1efd27cb91be996b366f00f875d7dee3db6ca62))
+
+
+### Documentation
+
+* add MQTT_PROXY_SECRET to docker-compose and README ([8bef8f5](https://github.com/erikarenhill/mqtt-multi-proxy/commit/8bef8f57a1c01179ee6c48051752768c4a9e25ae))
+
 ## [1.1.3](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.1.2...v1.1.3) (2026-01-08)
 
 
