@@ -1,3 +1,10 @@
+## [1.3.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.2.0...v1.3.0) (2026-02-07)
+
+
+### Features
+
+* add support to configure main broker from webui instead of env vars ([2bdaadd](https://github.com/erikarenhill/mqtt-multi-proxy/commit/2bdaaddc9d10eea1414506279d6d253be40faf0d))
+
 ## [1.2.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.1.3...v1.2.0) (2026-01-15)
 
 
