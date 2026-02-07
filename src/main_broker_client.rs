@@ -7,7 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
 use tracing::{debug, error, info};
 
 /// Create a hash from topic and payload for deduplication
@@ -64,7 +64,7 @@ impl MainBrokerClient {
         })
     }
 
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(self, mut shutdown_rx: watch::Receiver<bool>) -> Result<()> {
         info!(
             "Starting main broker client, connecting to {}:{}",
             self.config.address, self.config.port
@@ -94,7 +94,13 @@ impl MainBrokerClient {
 
         // Process incoming messages
         loop {
-            match eventloop.poll().await {
+            tokio::select! {
+                _ = shutdown_rx.changed() => {
+                    info!("Main broker client received shutdown signal");
+                    return Ok(());
+                }
+                poll_result = eventloop.poll() => {
+            match poll_result {
                 Ok(Event::Incoming(Incoming::ConnAck(_))) => {
                     info!(
                         "Connected to main broker at {}:{}",
@@ -187,6 +193,8 @@ impl MainBrokerClient {
                 Err(e) => {
                     error!("Main broker connection error: {}", e);
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+            }
                 }
             }
         }

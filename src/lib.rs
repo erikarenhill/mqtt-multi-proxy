@@ -7,6 +7,7 @@ pub mod main_broker_client;
 pub mod metrics;
 pub mod mqtt_listener;
 pub mod proxy;
+pub mod settings_storage;
 pub mod web_server;
 
 pub use broker_storage::{BrokerConfig, BrokerStorage};
@@ -14,3 +15,4 @@ pub use client_registry::ClientRegistry;
 pub use config::Config;
 pub use main_broker_client::MainBrokerClient;
 pub use proxy::MqttProxy;
+pub use settings_storage::SettingsStorage;

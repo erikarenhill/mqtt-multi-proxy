@@ -491,6 +491,16 @@ impl ConnectionManager {
         Ok(())
     }
 
+    /// Update the main broker address/port used for bidirectional reverse connections
+    pub fn update_main_broker_config(&mut self, address: String, port: u16) {
+        info!(
+            "Updating main broker config for reverse connections: {}:{}",
+            address, port
+        );
+        self.main_broker_address = address;
+        self.main_broker_port = port;
+    }
+
     /// Check if a topic matches a pattern (supports MQTT wildcards + and #)
     fn topic_matches_pattern(pattern: &str, topic: &str) -> bool {
         // Empty pattern matches all topics

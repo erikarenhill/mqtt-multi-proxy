@@ -54,6 +54,13 @@ pub struct WebUiConfig {
 pub struct StorageConfig {
     /// Path to broker storage file
     pub broker_store_path: String,
+    /// Path to settings storage file
+    #[serde(default = "default_settings_store_path")]
+    pub settings_store_path: String,
+}
+
+fn default_settings_store_path() -> String {
+    "./data/settings.json".to_string()
 }
 
 fn default_true() -> bool {
@@ -95,7 +102,7 @@ impl Default for Config {
         Self {
             main_broker: MainBrokerConfig {
                 address: std::env::var("MAIN_BROKER_ADDRESS")
-                    .unwrap_or_else(|_| "localhost".to_string()),
+                    .unwrap_or_else(|_| "mosquitto".to_string()),
                 port: 1883,
                 client_id: "mqtt-proxy".to_string(),
                 username: None,
@@ -107,6 +114,7 @@ impl Default for Config {
             },
             storage: StorageConfig {
                 broker_store_path: "./data/brokers.json".to_string(),
+                settings_store_path: default_settings_store_path(),
             },
         }
     }

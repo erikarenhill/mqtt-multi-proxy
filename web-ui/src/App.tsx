@@ -3,6 +3,7 @@ import BrokerList from './components/BrokerList'
 import MetricsDashboard from './components/MetricsDashboard'
 import AddBrokerForm from './components/AddBrokerForm'
 import MessageViewer from './components/MessageViewer'
+import MainBrokerSettings from './components/MainBrokerSettings'
 import './App.css'
 
 interface Broker {
@@ -215,6 +216,10 @@ function App() {
       </header>
 
       <main>
+        <section className="main-broker-section">
+          <MainBrokerSettings />
+        </section>
+
         <section className="brokers-section">
           <div className="section-header">
             <h2>Connected Brokers</h2>
