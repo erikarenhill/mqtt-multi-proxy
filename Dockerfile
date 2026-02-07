@@ -15,6 +15,9 @@ RUN npm ci
 # Copy source files
 COPY web-ui/ ./
 
+# Copy Cargo.toml so vite can read the app version
+COPY Cargo.toml /app/Cargo.toml
+
 # Build the web UI
 RUN npm run build
 
