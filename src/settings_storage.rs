@@ -106,10 +106,7 @@ impl SettingsStorage {
     /// Returns main broker settings with hidden password (for API responses)
     pub async fn get_main_broker_for_api(&self) -> Option<MainBrokerSettings> {
         let store = self.store.read().await;
-        store
-            .main_broker
-            .as_ref()
-            .map(|s| s.with_hidden_password())
+        store.main_broker.as_ref().map(|s| s.with_hidden_password())
     }
 
     /// Save main broker settings (encrypts password before storing)
@@ -139,8 +136,8 @@ impl SettingsStorage {
 
     async fn save(&self) -> Result<()> {
         let store = self.store.read().await;
-        let json = serde_json::to_string_pretty(&*store)
-            .context("Failed to serialize settings store")?;
+        let json =
+            serde_json::to_string_pretty(&*store).context("Failed to serialize settings store")?;
 
         // Write to temp file first, then rename (atomic operation)
         let temp_path = self.store_path.with_extension("tmp");

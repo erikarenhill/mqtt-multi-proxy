@@ -32,8 +32,7 @@ impl MqttProxy {
         let broker_storage = Arc::new(BrokerStorage::new(&config.storage.broker_store_path)?);
 
         // Initialize settings storage
-        let settings_storage =
-            Arc::new(SettingsStorage::new(&config.storage.settings_store_path)?);
+        let settings_storage = Arc::new(SettingsStorage::new(&config.storage.settings_store_path)?);
 
         // Initialize with default test brokers if empty
         broker_storage.init_defaults().await?;
@@ -46,11 +45,8 @@ impl MqttProxy {
         );
 
         // Resolve main broker config: settings.json > config.toml/env > defaults
-        let main_broker_config = Self::resolve_main_broker_config(
-            &settings_storage,
-            &config.main_broker,
-        )
-        .await;
+        let main_broker_config =
+            Self::resolve_main_broker_config(&settings_storage, &config.main_broker).await;
 
         // Initialize connection manager (connects to downstream brokers)
         let connection_manager = Arc::new(RwLock::new(
@@ -132,11 +128,9 @@ impl MqttProxy {
         info!("Starting MQTT Proxy Forwarder");
 
         // Resolve initial main broker config
-        let initial_config = Self::resolve_main_broker_config(
-            &self.settings_storage,
-            &self.config.main_broker,
-        )
-        .await;
+        let initial_config =
+            Self::resolve_main_broker_config(&self.settings_storage, &self.config.main_broker)
+                .await;
         info!(
             "Main broker: {}:{}",
             initial_config.address, initial_config.port

@@ -498,8 +498,7 @@ async fn test_main_broker_connection(
         }
     }
 
-    let (_client, mut eventloop) =
-        rumqttc::AsyncClient::new(mqtt_options, 10);
+    let (_client, mut eventloop) = rumqttc::AsyncClient::new(mqtt_options, 10);
 
     let start = std::time::Instant::now();
 
