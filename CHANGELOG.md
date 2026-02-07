@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.4.0...v1.4.1) (2026-02-07)
+
+
+### Bug Fixes
+
+* copy cargo.toml for access to version ([a47bbaa](https://github.com/erikarenhill/mqtt-multi-proxy/commit/a47bbaa5a500e5c5add6187df72248088703c371))
+
 ## [1.4.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.3.0...v1.4.0) (2026-02-07)
 
 
