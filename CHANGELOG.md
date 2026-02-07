@@ -1,3 +1,10 @@
+## [1.4.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.3.0...v1.4.0) (2026-02-07)
+
+
+### Features
+
+* add version to web-ui to easier see what version you're at ([c21cae3](https://github.com/erikarenhill/mqtt-multi-proxy/commit/c21cae3c4e48ec1377ce78fbef62178e095c433c))
+
 ## [1.3.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.2.0...v1.3.0) (2026-02-07)
 
 
