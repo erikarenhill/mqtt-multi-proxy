@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for MQTT Proxy
-# Optimized for minimal image size and fast builds
+# Uses cargo-chef for dependency caching and xx for native cross-compilation
 
-# Web UI builder stage
+# Web UI builder stage (platform-independent)
 FROM node:20-alpine AS web-builder
 
 WORKDIR /app/web-ui
@@ -21,38 +21,50 @@ COPY Cargo.toml /app/Cargo.toml
 # Build the web UI
 RUN npm run build
 
-# Rust builder stage
-FROM rust:1.83-alpine AS builder
+# Chef stage - install cargo-chef and cross-compilation tools on the BUILD platform
+# This avoids QEMU emulation for the entire Rust compilation
+FROM --platform=$BUILDPLATFORM rust:1.83-alpine AS chef
 
-# Install build dependencies
-RUN apk add --no-cache musl-dev
+COPY --from=tonistiigi/xx:1.6.1 / /
+
+RUN apk add --no-cache clang lld musl-dev && \
+    cargo install cargo-chef
 
 WORKDIR /app
 
-# Copy only Cargo.toml first for dependency caching
-COPY Cargo.toml ./
+# Planner stage - analyze dependencies (runs on build platform)
+FROM chef AS planner
 
-# Create dummy files for dependency caching
-RUN mkdir -p src benches && \
-    echo "fn main() {}" > src/main.rs && \
-    echo "pub fn dummy() {}" > src/lib.rs && \
-    echo "fn main() {}" > benches/latency.rs && \
-    echo "fn main() {}" > benches/throughput.rs
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+COPY benches ./benches
 
-# Build dependencies (cached layer)
-RUN cargo build --release && \
-    rm -rf src benches target/release/mqtt-proxy* target/release/deps/mqtt_proxy*
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Builder stage - cross-compile for the target platform
+FROM chef AS builder
+
+ARG TARGETPLATFORM
+
+# Install target sysroot and add Rust target
+RUN xx-apk add --no-cache musl-dev gcc && \
+    rustup target add $(xx-info rust-target) || true
+
+# Cook dependencies (cached layer - only invalidated when Cargo.toml/Cargo.lock change)
+COPY --from=planner /app/recipe.json recipe.json
+RUN xx-cargo chef cook --release --recipe-path recipe.json
 
 # Copy real source code
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY benches ./benches
 
 # Build the actual application
-RUN touch src/main.rs src/lib.rs && \
-    cargo build --release && \
-    strip target/release/mqtt-proxy
+RUN xx-cargo build --release && \
+    cp target/$(xx-info rust-target)/release/mqtt-proxy /app/mqtt-proxy && \
+    xx-verify /app/mqtt-proxy
 
-# Runtime stage
+# Runtime stage - minimal image
 FROM alpine:3.19
 
 # Install runtime dependencies and create user in single layer
@@ -65,7 +77,7 @@ WORKDIR /app
 USER appuser
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/mqtt-proxy ./mqtt-proxy
+COPY --from=builder /app/mqtt-proxy ./mqtt-proxy
 
 # Copy web UI static files from web-builder
 COPY --from=web-builder /app/web-ui/dist ./web-ui/dist
