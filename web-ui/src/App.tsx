@@ -211,7 +211,7 @@ function App() {
   return (
     <div className="app">
       <header>
-        <h1>MQTT Proxy Dashboard</h1>
+        <h1>MQTT Proxy Dashboard <span className="version-badge">v{__APP_VERSION__}</span></h1>
         <p>Real-time monitoring and control</p>
       </header>
 

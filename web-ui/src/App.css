@@ -19,6 +19,13 @@ header p {
   color: #999;
 }
 
+.version-badge {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: #999;
+  vertical-align: middle;
+}
+
 main {
   max-width: 1400px;
   margin: 0 auto;
