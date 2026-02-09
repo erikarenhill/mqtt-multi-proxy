@@ -192,6 +192,37 @@ function MessageViewer() {
     return []
   }
 
+  const extractMts = (payload: number[]): number | null => {
+    try {
+      const text = new TextDecoder().decode(new Uint8Array(payload))
+      const json = JSON.parse(text)
+      if (json && typeof json.m_ts === 'number') {
+        return json.m_ts
+      }
+    } catch {
+      // Not JSON or no m_ts
+    }
+    return null
+  }
+
+  const getLatestMessage = (msgs: MqttMessage[]): MqttMessage | null => {
+    if (msgs.length === 0) return null
+
+    // Check if any message has m_ts in its payload
+    const withMts = msgs
+      .map(msg => ({ msg, mts: extractMts(msg.payload) }))
+      .filter((entry): entry is { msg: MqttMessage; mts: number } => entry.mts !== null)
+
+    if (withMts.length > 0) {
+      // Sort by m_ts descending and return the first (latest)
+      withMts.sort((a, b) => b.mts - a.mts)
+      return withMts[0].msg
+    }
+
+    // No m_ts found, fall back to the last message by arrival order
+    return msgs[msgs.length - 1]
+  }
+
   const formatPayload = (payload: number[]): string => {
     try {
       const text = new TextDecoder().decode(new Uint8Array(payload))
@@ -254,28 +285,25 @@ function MessageViewer() {
           </div>
           <div className="message-list">
             {selectedTopic ? (
-              getSelectedMessages().length > 0 ? (
-                (() => {
-                  const messages = getSelectedMessages()
-                  const lastMessage = messages[messages.length - 1]
+              (() => {
+                  const msgs = getSelectedMessages()
+                  const latestMessage = getLatestMessage(msgs)
+                  if (!latestMessage) return <div className="empty-state">No messages</div>
                   return (
                     <div className="message-card">
                       <div className="message-meta">
-                        <span className="timestamp">{formatTimestamp(lastMessage.timestamp)}</span>
-                        <span className="client-id">Client: {lastMessage.client_id}</span>
-                        <span className={`qos qos-${lastMessage.qos}`}>QoS {lastMessage.qos}</span>
-                        {lastMessage.retain && <span className="retain-badge">Retained</span>}
+                        <span className="timestamp">{formatTimestamp(latestMessage.timestamp)}</span>
+                        <span className="client-id">Client: {latestMessage.client_id}</span>
+                        <span className={`qos qos-${latestMessage.qos}`}>QoS {latestMessage.qos}</span>
+                        {latestMessage.retain && <span className="retain-badge">Retained</span>}
                       </div>
                       <div className="payload-container">
                         <div className="payload-header">Payload:</div>
-                        <pre className="payload-content">{formatPayload(lastMessage.payload)}</pre>
+                        <pre className="payload-content">{formatPayload(latestMessage.payload)}</pre>
                       </div>
                     </div>
                   )
                 })()
-              ) : (
-                <div className="empty-state">No messages</div>
-              )
             ) : (
               <div className="empty-state">
                 <p>Select a topic to view messages</p>
