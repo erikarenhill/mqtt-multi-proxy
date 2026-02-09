@@ -1,3 +1,10 @@
+## [1.5.0](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.4.1...v1.5.0) (2026-02-09)
+
+
+### Features
+
+* try improve visual stability in web-ui ([502b40a](https://github.com/erikarenhill/mqtt-multi-proxy/commit/502b40aadd3c1e185bf5428e4cbacb3004dce7a8))
+
 ## [1.4.1](https://github.com/erikarenhill/mqtt-multi-proxy/compare/v1.4.0...v1.4.1) (2026-02-07)
 
 
